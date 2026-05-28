@@ -1,0 +1,55 @@
+name: 打包安卓 APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # 支持在 GitHub 网页上手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 拉取代码
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      # 2. 安装 Node.js
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # 3. 安装 Java（Android 编译需要）
+      - name: 安装 Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 4. 安装 Android SDK
+      - name: 安装 Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+
+      # 5. 安装项目依赖
+      - name: 安装 npm 依赖
+        run: npm install
+
+      # 6. 生成 Android 原生项目
+      - name: 生成 Android 项目
+        run: npx expo prebuild --platform android
+
+      # 7. 编译 APK
+      - name: 编译 APK
+        run: cd android && ./gradlew assembleDebug
+        env:
+          ORG_GRADLE_PROJECT_reactNativeArchitectures: x86_64
+
+      # 8. 上传 APK 产物
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI食物识别助手-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
