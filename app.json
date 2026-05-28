@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "AI食物识别助手",
+    "slug": "ai-food-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "AI食物识别助手需要使用相机来拍摄食物照片以进行热量分析",
+        "NSPhotoLibraryUsageDescription": "AI食物识别助手需要访问您的相册以选取食物照片进行分析"
+      },
+      "bundleIdentifier": "com.aifood.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ],
+      "package": "com.aifood.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-camera",
+      "expo-image-picker"
+    ],
+    "scheme": "aifood"
+  }
+}
