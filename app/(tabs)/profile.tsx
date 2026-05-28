@@ -18,8 +18,7 @@ import {
   estimateDailyCalories,
   GOAL_LABELS,
 } from '../../types';
-import { getProfile, saveProfile, clearHistory, getServerUrl } from '../../utils/storage';
-import { setApiBaseUrl, checkHealth } from '../../utils/api';
+import { getProfile, saveProfile, clearHistory } from '../../utils/storage';
 
 /**
  * 个人档案页面 —— 查看和编辑健康档案
@@ -36,9 +35,6 @@ export default function ProfileScreen() {
   const [customRestriction, setCustomRestriction] = useState('');
   const [dailyCalorieTarget, setDailyCalorieTarget] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
-  // 服务器地址
-  const [serverUrl, setServerUrl] = useState('http://192.168.1.100:3001');
-  const [serverStatus, setServerStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle');
 
   // ---- 每次进入页面加载最新档案 ----
   useFocusEffect(
@@ -61,9 +57,6 @@ export default function ProfileScreen() {
       setDailyCalorieTarget(p.dailyCalorieTarget.toString());
       setHasChanges(false);
     }
-    // 加载已保存的服务器地址
-    const savedUrl = await getServerUrl();
-    if (savedUrl) setServerUrl(savedUrl);
   }
 
   // ---- 切换饮食限制 ----
@@ -115,16 +108,6 @@ export default function ProfileScreen() {
     } catch {
       Alert.alert('错误', '保存失败，请重试');
     }
-  };
-
-  // ---- 测试服务器连接 ----
-  const handleTestConnection = async () => {
-    setServerStatus('testing');
-    // 先保存地址
-    await setApiBaseUrl(serverUrl.trim());
-    const ok = await checkHealth();
-    setServerStatus(ok ? 'ok' : 'fail');
-    setTimeout(() => setServerStatus('idle'), 3000);
   };
 
   // ---- 清除历史 ----
@@ -302,39 +285,6 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
-        {/* 服务器地址配置 */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>🔗 后端服务器地址</Text>
-          <Text style={styles.serverHint}>
-            手机和电脑需要在同一个 WiFi 下。在电脑终端输入 ipconfig 查看 IP 地址。
-          </Text>
-          <View style={styles.calorieRow}>
-            <TextInput
-              style={[styles.input, { flex: 1, marginRight: 10 }]}
-              value={serverUrl}
-              onChangeText={setServerUrl}
-              placeholder="http://192.168.x.x:3001"
-              placeholderTextColor="#D1D5DB"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-            />
-            <TouchableOpacity
-              style={[
-                styles.testBtn,
-                serverStatus === 'ok' && styles.testBtnOk,
-                serverStatus === 'fail' && styles.testBtnFail,
-              ]}
-              onPress={handleTestConnection}
-              disabled={serverStatus === 'testing'}
-            >
-              <Text style={styles.testBtnText}>
-                {serverStatus === 'testing' ? '...' : serverStatus === 'ok' ? '✓' : serverStatus === 'fail' ? '✗' : '测试'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* 危险操作区域 */}
         <View style={styles.dangerSection}>
           <TouchableOpacity style={styles.dangerBtn} onPress={handleClearHistory}>
@@ -491,31 +441,5 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
     fontSize: 15,
     fontWeight: '500',
-  },
-  // 服务器配置
-  serverHint: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginBottom: 10,
-    lineHeight: 18,
-  },
-  testBtn: {
-    backgroundColor: '#4CAF50',
-    width: 48,
-    height: 44,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  testBtnOk: {
-    backgroundColor: '#4CAF50',
-  },
-  testBtnFail: {
-    backgroundColor: '#FF6B6B',
-  },
-  testBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
