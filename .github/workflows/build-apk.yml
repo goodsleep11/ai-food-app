@@ -3,7 +3,7 @@ name: 打包安卓 APK
 on:
   push:
     branches: [main]
-  workflow_dispatch: # 支持在 GitHub 网页上手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: 安装 Java
+      - name: 安装 Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -32,31 +32,11 @@ jobs:
       - name: 安装 npm 依赖
         run: npm install
 
-      - name: 生成 Android 项目
+      - name: 生成 Android 原生项目
         run: npx expo prebuild --platform android --clean
 
-      - name: 打印当前版本配置（便于排查）
-        run: |
-          echo "=== build.gradle ==="
-          cat android/build.gradle
-          echo ""
-          echo "=== gradle-wrapper.properties ==="
-          cat android/gradle/wrapper/gradle-wrapper.properties
-          echo ""
-          echo "=== app/build.gradle 前30行 ==="
-          head -30 android/app/build.gradle
-
-      - name: 修复 Gradle 版本兼容性
-        run: |
-          # 锁定 AGP 8.3.0 + Gradle 8.7（兼容 Expo SDK 52 / RN 0.76）
-          sed -i 's|com.android.tools.build:gradle:.*|com.android.tools.build:gradle:8.3.0"|' android/build.gradle
-          sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-all.zip|' android/gradle/wrapper/gradle-wrapper.properties
-
-          echo "=== 修复后的 build.gradle ==="
-          cat android/build.gradle
-          echo ""
-          echo "=== 修复后的 gradle-wrapper.properties ==="
-          cat android/gradle/wrapper/gradle-wrapper.properties
+      - name: 修复 Gradle 兼容性（AGP + SoftwareComponent）
+        run: node scripts/fix-gradle.js
 
       - name: 编译 APK
         run: cd android && ./gradlew assembleDebug
