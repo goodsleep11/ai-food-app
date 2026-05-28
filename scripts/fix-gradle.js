@@ -35,8 +35,10 @@ let appGradle = fs.readFileSync(appGradlePath, 'utf-8');
 const publishingFix = `
 // [自动修复] 解决 AGP 8.x 的 "unknown property release" 错误
 afterEvaluate {
-    publishing {
-        singleVariant("release") {}
+    android {
+        publishing {
+            singleVariant("release") {}
+        }
     }
 }
 `;
