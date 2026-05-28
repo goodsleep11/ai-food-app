@@ -48,9 +48,9 @@ jobs:
 
       - name: 修复 Gradle 版本兼容性
         run: |
-          # 锁定 AGP 8.3.0 + Gradle 8.6（兼容 Expo SDK 52 / RN 0.76）
+          # 锁定 AGP 8.3.0 + Gradle 8.7（兼容 Expo SDK 52 / RN 0.76）
           sed -i 's|com.android.tools.build:gradle:.*|com.android.tools.build:gradle:8.3.0"|' android/build.gradle
-          sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.6-all.zip|' android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-all.zip|' android/gradle/wrapper/gradle-wrapper.properties
 
           echo "=== 修复后的 build.gradle ==="
           cat android/build.gradle
