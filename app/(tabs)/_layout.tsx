@@ -2,17 +2,18 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../../constants/theme';
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: '#FFFFFF' },
-        headerTitleStyle: { fontSize: 17, fontWeight: '600', color: '#1A1A2E' },
+        headerStyle: { backgroundColor: Colors.bg },
+        headerTitleStyle: { fontSize: 17, fontWeight: '600', color: Colors.text },
         headerShadowVisible: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#4CAF50',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.textTertiary,
         tabBarLabelStyle: styles.tabLabel,
       }}
     >
@@ -20,7 +21,6 @@ export default function TabLayout() {
         name="index"
         options={{
           title: '首页',
-          headerTitle: '',
           headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
@@ -49,9 +49,9 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E7EB',
-    height: 85,
-    paddingBottom: 25,
+    borderTopColor: Colors.separator,
+    height: 88,
+    paddingBottom: 28,
     paddingTop: 6,
   },
   tabLabel: { fontSize: 11, fontWeight: '500' },

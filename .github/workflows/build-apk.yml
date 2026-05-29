@@ -57,8 +57,26 @@ jobs:
       - name: 输出 APK
         run: cp android/app/build/outputs/apk/release/app-release.apk AI食物识别助手.apk
 
-      - name: 上传 APK
+      - name: 上传 APK (Artifact)
         uses: actions/upload-artifact@v4
         with:
           name: AI食物识别助手-APK
           path: AI食物识别助手.apk
+
+      - name: 读取版本号
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          files: AI食物识别助手.apk
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

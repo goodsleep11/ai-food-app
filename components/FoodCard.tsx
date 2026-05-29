@@ -1,21 +1,17 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, ScrollView } from 'react-native';
 import { AnalysisResult } from '../types';
+import { Colors, Typography, Shadow, Radius, Spacing } from '../constants/theme';
 
 interface FoodCardProps {
   result: AnalysisResult;
 }
 
-/**
- * 食物分析结果卡片
- * 展示识别出的食物清单、热量、营养素、警告和建议
- */
 export default function FoodCard({ result }: FoodCardProps) {
   const { foods, totalCalories, totalProtein, totalCarbs, totalFat, warnings, suggestions, isCompliant, imageBase64, caloriePercentage } = result;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* 食物缩略图 */}
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
       {imageBase64 ? (
         <Image
           source={{ uri: `data:image/jpeg;base64,${imageBase64}` }}
@@ -24,24 +20,28 @@ export default function FoodCard({ result }: FoodCardProps) {
         />
       ) : null}
 
-      {/* 总热量 - 醒目大字 */}
-      <View style={styles.calorieHero}>
+      {/* 总热量 */}
+      <View style={[styles.calorieHero, Shadow.card]}>
         <Text style={styles.calorieNumber}>{totalCalories}</Text>
         <Text style={styles.calorieUnit}>kcal</Text>
-        <Text style={styles.caloriePercent}>占每日目标 {caloriePercentage}%</Text>
+        <View style={styles.caloriePercentBadge}>
+          <Text style={styles.caloriePercentText}>占每日目标 {caloriePercentage}%</Text>
+        </View>
       </View>
 
       {/* 三大宏量素 */}
-      <View style={styles.macrosRow}>
-        <MacroItem label="蛋白质" value={totalProtein} unit="g" color="#4CAF50" />
-        <MacroItem label="碳水" value={totalCarbs} unit="g" color="#FFA726" />
-        <MacroItem label="脂肪" value={totalFat} unit="g" color="#EF5350" />
+      <View style={[styles.macrosRow, Shadow.card]}>
+        <MacroItem label="蛋白质" value={totalProtein} unit="g" color={Colors.protein} />
+        <View style={styles.macroDivider} />
+        <MacroItem label="碳水" value={totalCarbs} unit="g" color={Colors.carbs} />
+        <View style={styles.macroDivider} />
+        <MacroItem label="脂肪" value={totalFat} unit="g" color={Colors.fat} />
       </View>
 
       {/* 食物清单 */}
       {foods.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🍽️ 识别食物</Text>
+        <View style={[styles.section, Shadow.card]}>
+          <Text style={styles.sectionTitle}>识别食物</Text>
           {foods.map((food, index) => (
             <View key={index} style={styles.foodItem}>
               <View style={styles.foodInfo}>
@@ -54,13 +54,13 @@ export default function FoodCard({ result }: FoodCardProps) {
         </View>
       )}
 
-      {/* 警告信息 */}
+      {/* 警告 */}
       {warnings.length > 0 && (
         <View style={[styles.section, styles.warningSection]}>
-          <Text style={styles.sectionTitle}>⚠️ 饮食提醒</Text>
+          <Text style={styles.sectionTitle}>饮食提醒</Text>
           {warnings.map((w, i) => (
             <View key={i} style={styles.warningItem}>
-              <Text style={styles.warningDot}>•</Text>
+              <View style={styles.warningDot} />
               <Text style={styles.warningText}>{w}</Text>
             </View>
           ))}
@@ -69,22 +69,23 @@ export default function FoodCard({ result }: FoodCardProps) {
 
       {isCompliant && foods.length > 0 && (
         <View style={[styles.section, styles.compliantSection]}>
-          <Text style={styles.compliantText}>✅ 未检测到违反饮食限制的成分</Text>
+          <Text style={styles.compliantText}>未检测到违反饮食限制的成分</Text>
         </View>
       )}
 
-      {/* 个性化建议 */}
+      {/* 建议 */}
       {suggestions ? (
         <View style={[styles.section, styles.adviceSection]}>
-          <Text style={styles.sectionTitle}>💡 营养建议</Text>
+          <Text style={styles.sectionTitle}>营养建议</Text>
           <Text style={styles.adviceText}>{suggestions}</Text>
         </View>
       ) : null}
+
+      <View style={{ height: 20 }} />
     </ScrollView>
   );
 }
 
-/** 单个宏量素展示组件 */
 function MacroItem({ label, value, unit, color }: { label: string; value: number; unit: string; color: string }) {
   return (
     <View style={styles.macroItem}>
@@ -95,140 +96,83 @@ function MacroItem({ label, value, unit, color }: { label: string; value: number
   );
 }
 
-// ==================== 样式 ====================
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+  container: { flex: 1, backgroundColor: Colors.bg },
+  content: { paddingHorizontal: Spacing.xl },
   image: {
     width: '100%',
     height: 200,
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: Radius.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   calorieHero: {
     alignItems: 'center',
-    paddingVertical: 20,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    marginBottom: 12,
+    paddingVertical: Spacing.xxl,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    marginBottom: Spacing.md,
   },
-  calorieNumber: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#1A1A2E',
+  calorieNumber: { fontSize: 48, fontWeight: '800', color: Colors.text },
+  calorieUnit: { fontSize: 15, color: Colors.textSecondary, marginTop: -4 },
+  caloriePercentBadge: {
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
   },
-  calorieUnit: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginTop: -4,
-  },
-  caloriePercent: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginTop: 4,
-  },
+  caloriePercentText: { fontSize: 13, color: Colors.primary, fontWeight: '500' },
   macrosRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginBottom: 12,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.md,
   },
-  macroItem: {
-    alignItems: 'center',
-  },
-  macroValue: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  macroUnit: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  macroLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 4,
-  },
+  macroItem: { alignItems: 'center', flex: 1 },
+  macroValue: { fontSize: 20, fontWeight: '700' },
+  macroUnit: { fontSize: 12, color: Colors.textTertiary },
+  macroLabel: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
+  macroDivider: { width: 1, height: 30, backgroundColor: Colors.separator, alignSelf: 'center' },
   section: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
   },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1A1A2E',
-    marginBottom: 12,
-  },
+  sectionTitle: { ...Typography.caption2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Spacing.md },
   foodItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: Spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: Colors.separator,
   },
-  foodInfo: {
-    flex: 1,
-  },
-  foodName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#1A1A2E',
-  },
-  foodPortion: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginTop: 2,
-  },
-  foodCalories: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#4CAF50',
-  },
+  foodInfo: { flex: 1 },
+  foodName: { fontSize: 15, fontWeight: '500', color: Colors.text },
+  foodPortion: { fontSize: 12, color: Colors.textTertiary, marginTop: 2 },
+  foodCalories: { fontSize: 14, fontWeight: '600', color: Colors.primary },
   warningSection: {
-    backgroundColor: '#FFF5F5',
-    borderWidth: 1,
+    backgroundColor: Colors.dangerLight,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#FFE0E0',
   },
-  warningItem: {
-    flexDirection: 'row',
-    paddingVertical: 4,
-  },
-  warningDot: {
-    color: '#FF6B6B',
-    marginRight: 8,
-    fontSize: 14,
-  },
-  warningText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#CC5555',
-    lineHeight: 20,
-  },
+  warningItem: { flexDirection: 'row', paddingVertical: 3, gap: 8, alignItems: 'center' },
+  warningDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.danger },
+  warningText: { flex: 1, fontSize: 14, color: '#CC4444', lineHeight: 20 },
   compliantSection: {
-    backgroundColor: '#F0FFF0',
-    borderWidth: 1,
+    backgroundColor: Colors.primaryLight,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#D4EDDA',
   },
-  compliantText: {
-    fontSize: 14,
-    color: '#4CAF50',
-    textAlign: 'center',
-  },
+  compliantText: { fontSize: 14, color: Colors.primary, textAlign: 'center' },
   adviceSection: {
-    backgroundColor: '#F0F9FF',
-    borderWidth: 1,
-    borderColor: '#E0F0FF',
+    backgroundColor: '#F0F7FF',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E0EEFF',
   },
-  adviceText: {
-    fontSize: 14,
-    color: '#374151',
-    lineHeight: 22,
-  },
+  adviceText: { fontSize: 14, color: Colors.text, lineHeight: 22 },
 });

@@ -19,12 +19,9 @@ import {
   GOAL_LABELS,
 } from '../../types';
 import { getProfile, saveProfile, clearHistory } from '../../utils/storage';
+import { Colors, Typography, Shadow, Radius, Spacing } from '../../constants/theme';
 
-/**
- * 个人档案页面 —— 查看和编辑健康档案
- */
 export default function ProfileScreen() {
-  // ---- 表单状态 ----
   const [nickname, setNickname] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState<UserProfile['gender']>('male');
@@ -36,7 +33,6 @@ export default function ProfileScreen() {
   const [dailyCalorieTarget, setDailyCalorieTarget] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
-  // ---- 每次进入页面加载最新档案 ----
   useFocusEffect(
     useCallback(() => {
       loadProfileData();
@@ -59,7 +55,6 @@ export default function ProfileScreen() {
     }
   }
 
-  // ---- 切换饮食限制 ----
   const toggleRestriction = (item: string) => {
     setDietaryRestrictions((prev) =>
       prev.includes(item) ? prev.filter((r) => r !== item) : [...prev, item]
@@ -67,7 +62,6 @@ export default function ProfileScreen() {
     setHasChanges(true);
   };
 
-  // ---- 自动估算热量 ----
   const handleAutoEstimate = () => {
     const w = parseFloat(weight);
     const h = parseFloat(height);
@@ -80,7 +74,6 @@ export default function ProfileScreen() {
     }
   };
 
-  // ---- 保存 ----
   const handleSave = async () => {
     if (!nickname.trim()) return Alert.alert('提示', '请输入昵称');
     if (!age || isNaN(Number(age))) return Alert.alert('提示', '请输入有效年龄');
@@ -110,7 +103,6 @@ export default function ProfileScreen() {
     }
   };
 
-  // ---- 清除历史 ----
   const handleClearHistory = () => {
     Alert.alert('清除历史记录', '此操作不可恢复，确定要清除所有饮食记录吗？', [
       { text: '取消', style: 'cancel' },
@@ -125,41 +117,40 @@ export default function ProfileScreen() {
     ]);
   };
 
-  // ---- 渲染 ----
   return (
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
         {/* 基本信息 */}
-        <View style={styles.section}>
+        <View style={[styles.section, Shadow.card]}>
           <Text style={styles.sectionLabel}>基本信息</Text>
 
-          <FormField label="昵称">
+          <Field label="昵称">
             <TextInput
               style={styles.input}
               value={nickname}
               onChangeText={(t) => { setNickname(t); setHasChanges(true); }}
               placeholder="请输入昵称"
-              placeholderTextColor="#D1D5DB"
+              placeholderTextColor={Colors.textTertiary}
               maxLength={20}
             />
-          </FormField>
+          </Field>
 
-          <FormField label="年龄">
+          <Field label="年龄">
             <TextInput
               style={styles.input}
               value={age}
               onChangeText={(t) => { setAge(t); setHasChanges(true); }}
               placeholder="请输入年龄"
-              placeholderTextColor="#D1D5DB"
+              placeholderTextColor={Colors.textTertiary}
               keyboardType="number-pad"
               maxLength={3}
             />
-          </FormField>
+          </Field>
 
-          <FormField label="性别">
+          <Field label="性别">
             <View style={styles.optionRow}>
               {(['male', 'female', 'other'] as const).map((g) => (
                 <TouchableOpacity
@@ -173,40 +164,40 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-          </FormField>
+          </Field>
 
           <View style={styles.rowFields}>
             <View style={{ flex: 1, marginRight: 10 }}>
-              <FormField label="身高 (cm)">
+              <Field label="身高 (cm)">
                 <TextInput
                   style={styles.input}
                   value={height}
                   onChangeText={(t) => { setHeight(t); setHasChanges(true); }}
                   placeholder="如 170"
-                  placeholderTextColor="#D1D5DB"
+                  placeholderTextColor={Colors.textTertiary}
                   keyboardType="decimal-pad"
                   maxLength={5}
                 />
-              </FormField>
+              </Field>
             </View>
             <View style={{ flex: 1 }}>
-              <FormField label="体重 (kg)">
+              <Field label="体重 (kg)">
                 <TextInput
                   style={styles.input}
                   value={weight}
                   onChangeText={(t) => { setWeight(t); setHasChanges(true); }}
                   placeholder="如 65"
-                  placeholderTextColor="#D1D5DB"
+                  placeholderTextColor={Colors.textTertiary}
                   keyboardType="decimal-pad"
                   maxLength={5}
                 />
-              </FormField>
+              </Field>
             </View>
           </View>
         </View>
 
         {/* 饮食目标 */}
-        <View style={styles.section}>
+        <View style={[styles.section, Shadow.card]}>
           <Text style={styles.sectionLabel}>饮食目标</Text>
           <View style={styles.optionRow}>
             {(['lose_fat', 'gain_muscle', 'maintain'] as const).map((g) => (
@@ -227,40 +218,32 @@ export default function ProfileScreen() {
         </View>
 
         {/* 饮食限制 */}
-        <View style={styles.section}>
+        <View style={[styles.section, Shadow.card]}>
           <Text style={styles.sectionLabel}>饮食限制（可多选）</Text>
           <View style={styles.tagGrid}>
             {DIETARY_OPTIONS.map((item) => (
               <TouchableOpacity
                 key={item}
-                style={[
-                  styles.tag,
-                  dietaryRestrictions.includes(item) && styles.tagActive,
-                ]}
+                style={[styles.tag, dietaryRestrictions.includes(item) && styles.tagActive]}
                 onPress={() => toggleRestriction(item)}
               >
-                <Text
-                  style={[
-                    styles.tagText,
-                    dietaryRestrictions.includes(item) && styles.tagTextActive,
-                  ]}
-                >
+                <Text style={[styles.tagText, dietaryRestrictions.includes(item) && styles.tagTextActive]}>
                   {item}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
           <TextInput
-            style={[styles.input, { marginTop: 10 }]}
+            style={[styles.input, { marginTop: Spacing.md }]}
             value={customRestriction}
             onChangeText={(t) => { setCustomRestriction(t); setHasChanges(true); }}
             placeholder="其他自定义限制（选填）"
-            placeholderTextColor="#D1D5DB"
+            placeholderTextColor={Colors.textTertiary}
           />
         </View>
 
         {/* 每日目标热量 */}
-        <View style={styles.section}>
+        <View style={[styles.section, Shadow.card]}>
           <Text style={styles.sectionLabel}>每日目标热量 (kcal)</Text>
           <View style={styles.calorieRow}>
             <TextInput
@@ -268,7 +251,7 @@ export default function ProfileScreen() {
               value={dailyCalorieTarget}
               onChangeText={(t) => { setDailyCalorieTarget(t); setHasChanges(true); }}
               placeholder="如 2000"
-              placeholderTextColor="#D1D5DB"
+              placeholderTextColor={Colors.textTertiary}
               keyboardType="number-pad"
               maxLength={5}
             />
@@ -280,15 +263,15 @@ export default function ProfileScreen() {
 
         {/* 保存按钮 */}
         {hasChanges && (
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.8}>
+          <TouchableOpacity style={[styles.saveBtn, Shadow.button]} onPress={handleSave} activeOpacity={0.9}>
             <Text style={styles.saveBtnText}>保存修改</Text>
           </TouchableOpacity>
         )}
 
-        {/* 危险操作区域 */}
+        {/* 危险区域 */}
         <View style={styles.dangerSection}>
           <TouchableOpacity style={styles.dangerBtn} onPress={handleClearHistory}>
-            <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
+            <Ionicons name="trash-outline" size={17} color={Colors.danger} />
             <Text style={styles.dangerBtnText}>清除所有历史记录</Text>
           </TouchableOpacity>
         </View>
@@ -299,8 +282,7 @@ export default function ProfileScreen() {
   );
 }
 
-// ---- 表单字段组件 ----
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={styles.fieldContainer}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -309,137 +291,110 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-// ==================== 样式 ====================
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
+    backgroundColor: Colors.bg,
+    paddingHorizontal: Spacing.xl,
   },
   section: {
-    marginBottom: 20,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
   },
   sectionLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1A1A2E',
-    marginBottom: 14,
+    ...Typography.caption2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: Spacing.lg,
   },
-  fieldContainer: { marginBottom: 14 },
-  fieldLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 6,
-  },
+  fieldContainer: { marginBottom: Spacing.md },
+  fieldLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 6 },
   input: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    backgroundColor: Colors.cardSecondary,
+    borderRadius: Radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#1A1A2E',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    color: Colors.text,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
   },
   rowFields: { flexDirection: 'row' },
-  optionRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+  optionRow: { flexDirection: 'row', gap: 10 },
   optionBtn: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: Radius.md,
+    backgroundColor: Colors.cardSecondary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
     alignItems: 'center',
   },
   optionBtnActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
-  optionText: { fontSize: 15, color: '#6B7280' },
-  optionTextActive: { color: '#4CAF50', fontWeight: '600' },
+  optionText: { fontSize: 15, color: Colors.textSecondary },
+  optionTextActive: { color: Colors.primary, fontWeight: '600' },
   goalBtn: {
     flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    paddingVertical: Spacing.lg,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.cardSecondary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
     alignItems: 'center',
   },
   goalBtnActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
   goalEmoji: { fontSize: 24, marginBottom: 6 },
-  goalText: { fontSize: 14, color: '#6B7280' },
-  goalTextActive: { color: '#4CAF50', fontWeight: '600' },
-  tagGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  goalText: { fontSize: 14, color: Colors.textSecondary },
+  goalTextActive: { color: Colors.primary, fontWeight: '600' },
+  tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: Radius.full,
+    backgroundColor: Colors.cardSecondary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
   },
   tagActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
-  tagText: { fontSize: 13, color: '#6B7280' },
-  tagTextActive: { color: '#4CAF50', fontWeight: '500' },
+  tagText: { fontSize: 13, color: Colors.textSecondary },
+  tagTextActive: { color: Colors.primary, fontWeight: '500' },
   calorieRow: { flexDirection: 'row', alignItems: 'center' },
   estimateBtn: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: Colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: Radius.md,
   },
   estimateBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '500' },
   saveBtn: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    borderRadius: 14,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.lg,
+    borderRadius: Radius.lg,
     alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    marginTop: Spacing.xxl,
   },
   saveBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
-  // 危险区域
-  dangerSection: {
-    marginBottom: 20,
-    paddingTop: 10,
-  },
+  dangerSection: { marginTop: Spacing.xxxl },
   dangerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF5F5',
+    backgroundColor: Colors.dangerLight,
     paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#FFE0E0',
+    borderRadius: Radius.md,
     gap: 8,
   },
-  dangerBtnText: {
-    color: '#FF6B6B',
-    fontSize: 15,
-    fontWeight: '500',
-  },
+  dangerBtnText: { color: Colors.danger, fontSize: 15, fontWeight: '500' },
 });

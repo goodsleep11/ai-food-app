@@ -13,10 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ProgressCircle from '../../components/ProgressCircle';
 import { getHistory, getTodaySummary, getProfile, deleteRecord } from '../../utils/storage';
 import { AnalysisResult, UserProfile } from '../../types';
+import { Colors, Typography, Shadow, Radius, Spacing } from '../../constants/theme';
 
-/**
- * 历史记录页 —— 顶部展示今日汇总，下方展示全部历史
- */
 export default function HistoryScreen() {
   const [records, setRecords] = useState<AnalysisResult[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -29,7 +27,6 @@ export default function HistoryScreen() {
   });
   const [refreshing, setRefreshing] = useState(false);
 
-  // 每次页面获得焦点时刷新数据
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -71,110 +68,99 @@ export default function HistoryScreen() {
   const caloriePercent =
     dailyTarget > 0 ? Math.round((todaySummary.totalCalories / dailyTarget) * 100) : 0;
 
-  // 渲染每条历史记录
   const renderItem = ({ item }: { item: AnalysisResult }) => (
-    <View style={styles.recordCard}>
+    <View style={[styles.recordCard, Shadow.card]}>
       <View style={styles.recordHeader}>
-        <Text style={styles.recordTime}>
-          {new Date(item.timestamp).toLocaleTimeString('zh-CN', {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Text>
+        <View style={styles.recordTimeRow}>
+          <View style={styles.recordDot} />
+          <Text style={styles.recordTime}>
+            {new Date(item.timestamp).toLocaleTimeString('zh-CN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+        </View>
         <TouchableOpacity onPress={() => handleDelete(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="trash-outline" size={16} color="#D1D5DB" />
+          <Ionicons name="trash-outline" size={16} color={Colors.textTertiary} />
         </TouchableOpacity>
       </View>
 
-      {/* 食物列表 */}
       {item.foods.map((food, idx) => (
-        <View key={idx} style={styles.miniFoodRow}>
-          <Text style={styles.miniFoodName}>{food.name}</Text>
-          <Text style={styles.miniFoodPortion}>{food.portion}</Text>
-          <Text style={styles.miniFoodCal}>{food.calories} kcal</Text>
+        <View key={idx} style={styles.foodRow}>
+          <View style={styles.foodInfo}>
+            <Text style={styles.foodName}>{food.name}</Text>
+            <Text style={styles.foodPortion}>{food.portion}</Text>
+          </View>
+          <Text style={styles.foodCal}>{food.calories} kcal</Text>
         </View>
       ))}
 
-      {/* 底部汇总 + 警告 */}
       <View style={styles.recordFooter}>
         <Text style={styles.recordTotal}>合计 {item.totalCalories} kcal</Text>
         {item.warnings.length > 0 && (
-          <View style={styles.recordWarning}>
-            <Ionicons name="warning" size={12} color="#FF6B6B" />
-            <Text style={styles.recordWarningText}>{item.warnings[0]}</Text>
+          <View style={styles.warningTag}>
+            <Ionicons name="alert-circle" size={12} color={Colors.danger} />
+            <Text style={styles.warningText}>{item.warnings[0]}</Text>
           </View>
         )}
       </View>
     </View>
   );
 
-  // 空状态
   const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>📸</Text>
+    <View style={styles.empty}>
+      <View style={styles.emptyIconWrap}>
+        <Ionicons name="restaurant-outline" size={40} color={Colors.textTertiary} />
+      </View>
       <Text style={styles.emptyTitle}>暂无记录</Text>
-      <Text style={styles.emptyDesc}>点击底部拍照按钮，开始记录你的饮食吧</Text>
+      <Text style={styles.emptyDesc}>点击首页「拍照识别」开始记录饮食</Text>
     </View>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.screen}>
       <FlatList
         data={records}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         ListEmptyComponent={renderEmpty}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4CAF50" />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
         }
         ListHeaderComponent={
-          <View style={styles.todaySection}>
-            {/* 今日热量圆环 */}
-            <View style={styles.todayCircleRow}>
-              <ProgressCircle
-                percentage={caloriePercent}
-                size={150}
-                label={`${todaySummary.totalCalories}`}
-                sublabel={`/ ${dailyTarget} kcal`}
-              />
+          <View>
+            {/* 今日汇总卡片 */}
+            <View style={[styles.todayCard, Shadow.elevated]}>
+              <View style={styles.todayCircleRow}>
+                <ProgressCircle
+                  percentage={caloriePercent}
+                  size={130}
+                  strokeWidth={10}
+                  label={`${todaySummary.totalCalories}`}
+                  sublabel={`/ ${dailyTarget} kcal`}
+                />
+              </View>
+
+              <View style={styles.macrosRow}>
+                <MacroItem color={Colors.protein} label="蛋白质" value={`${todaySummary.totalProtein}g`} />
+                <View style={styles.macroDivider} />
+                <MacroItem color={Colors.carbs} label="碳水" value={`${todaySummary.totalCarbs}g`} />
+                <View style={styles.macroDivider} />
+                <MacroItem color={Colors.fat} label="脂肪" value={`${todaySummary.totalFat}g`} />
+              </View>
+
+              <Text style={styles.todayCount}>
+                今日已记录 {todaySummary.count} 餐
+                {caloriePercent >= 100 ? ' · 已达成目标' : ''}
+              </Text>
             </View>
 
-            {/* 三大宏量素 */}
-            <View style={styles.macrosRow}>
-              <View style={styles.macroItem}>
-                <Text style={[styles.macroValue, { color: '#4CAF50' }]}>
-                  {todaySummary.totalProtein}g
-                </Text>
-                <Text style={styles.macroLabel}>蛋白质</Text>
+            {/* 分隔 */}
+            {records.length > 0 && (
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>历史记录</Text>
               </View>
-              <View style={styles.macroDivider} />
-              <View style={styles.macroItem}>
-                <Text style={[styles.macroValue, { color: '#FFA726' }]}>
-                  {todaySummary.totalCarbs}g
-                </Text>
-                <Text style={styles.macroLabel}>碳水</Text>
-              </View>
-              <View style={styles.macroDivider} />
-              <View style={styles.macroItem}>
-                <Text style={[styles.macroValue, { color: '#EF5350' }]}>
-                  {todaySummary.totalFat}g
-                </Text>
-                <Text style={styles.macroLabel}>脂肪</Text>
-              </View>
-            </View>
-
-            {/* 今日记录条数 */}
-            <Text style={styles.todayCount}>
-              今日已记录 {todaySummary.count} 餐
-              {caloriePercent >= 100 ? ' —— 已达成今日目标！🎉' : ''}
-            </Text>
-
-            {/* 分隔线 */}
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>历史记录</Text>
-              <View style={styles.dividerLine} />
-            </View>
+            )}
           </View>
         }
         contentContainerStyle={styles.listContent}
@@ -183,157 +169,111 @@ export default function HistoryScreen() {
   );
 }
 
-// ==================== 样式 ====================
+function MacroItem({ color, label, value }: { color: string; label: string; value: string }) {
+  return (
+    <View style={macroStyles.item}>
+      <Text style={[macroStyles.value, { color }]}>{value}</Text>
+      <Text style={macroStyles.label}>{label}</Text>
+    </View>
+  );
+}
+
+const macroStyles = StyleSheet.create({
+  item: { alignItems: 'center', flex: 1 },
+  value: { fontSize: 17, fontWeight: '700' },
+  label: { fontSize: 12, color: Colors.textTertiary, marginTop: 2 },
+});
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
-  // 今日汇总区域
-  todaySection: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  todayCircleRow: {
+  screen: { flex: 1, backgroundColor: Colors.bg },
+  listContent: { paddingBottom: 30 },
+
+  // 今日汇总
+  todayCard: {
+    marginHorizontal: Spacing.xl,
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
     alignItems: 'center',
-    marginBottom: 16,
   },
+  todayCircleRow: { alignItems: 'center', marginBottom: Spacing.lg },
   macrosRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 14,
-    paddingVertical: 14,
-    marginBottom: 12,
+    width: '100%',
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  macroItem: {
-    alignItems: 'center',
-    flex: 1,
+  macroDivider: { width: 1, height: 28, backgroundColor: Colors.separator, alignSelf: 'center' },
+  todayCount: { ...Typography.caption, textAlign: 'center' },
+
+  // 历史分隔
+  sectionHeader: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xxl,
+    paddingBottom: Spacing.sm,
   },
-  macroValue: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  macroLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 4,
-  },
-  macroDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#E5E7EB',
-    alignSelf: 'center',
-  },
-  todayCount: {
-    textAlign: 'center',
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginBottom: 6,
-  },
-  // 分隔线
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 10,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: '#E5E7EB',
-  },
-  dividerText: {
-    marginHorizontal: 12,
-    fontSize: 13,
-    color: '#9CA3AF',
-  },
+  sectionTitle: { ...Typography.caption2, textTransform: 'uppercase', letterSpacing: 0.5 },
+
   // 记录卡片
   recordCard: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 14,
-    padding: 14,
+    marginHorizontal: Spacing.xl,
+    marginTop: Spacing.md,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
   },
   recordHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.md,
   },
-  recordTime: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    fontWeight: '500',
-  },
-  miniFoodRow: {
+  recordTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  recordDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  recordTime: { ...Typography.caption },
+  foodRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingVertical: Spacing.sm,
   },
-  miniFoodName: {
-    flex: 2,
-    fontSize: 14,
-    color: '#1A1A2E',
-  },
-  miniFoodPortion: {
-    flex: 1,
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  miniFoodCal: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#4CAF50',
-  },
+  foodInfo: { flex: 1 },
+  foodName: { fontSize: 15, fontWeight: '500', color: Colors.text },
+  foodPortion: { fontSize: 12, color: Colors.textTertiary, marginTop: 1 },
+  foodCal: { fontSize: 14, fontWeight: '500', color: Colors.primary },
   recordFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: Colors.separator,
   },
-  recordTotal: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1A1A2E',
-  },
-  recordWarning: {
+  recordTotal: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  warningTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF5F5',
+    backgroundColor: Colors.dangerLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Radius.sm,
+    gap: 4,
   },
-  recordWarningText: {
-    fontSize: 12,
-    color: '#FF6B6B',
-    marginLeft: 4,
-  },
+  warningText: { fontSize: 12, color: Colors.danger },
+
   // 空状态
-  emptyContainer: {
+  empty: { alignItems: 'center', paddingTop: 80 },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.card,
     alignItems: 'center',
-    paddingTop: 60,
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1A1A2E',
-    marginBottom: 6,
-  },
-  emptyDesc: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
+  emptyTitle: { ...Typography.subtitle, marginBottom: 4 },
+  emptyDesc: { ...Typography.caption },
 });

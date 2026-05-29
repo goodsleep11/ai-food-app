@@ -1,9 +1,11 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProgressCircle from '../../components/ProgressCircle';
 import { getProfile, getTodaySummary } from '../../utils/storage';
+import { checkForUpdate, showUpdatePrompt } from '../../utils/updater';
+import { Colors, Typography, Shadow, Radius, Spacing } from '../../constants/theme';
 
 export default function HomeScreen() {
   const [profile, setProfile] = useState<any>(null);
@@ -19,93 +21,91 @@ export default function HomeScreen() {
     }, [])
   );
 
+  // 启动时检查更新
+  useEffect(() => {
+    checkForUpdate().then((release) => {
+      if (release) showUpdatePrompt(release);
+    });
+  }, []);
+
   const dailyTarget = profile?.dailyCalorieTarget || 2000;
   const pct = dailyTarget > 0 ? Math.round((today.totalCalories / dailyTarget) * 100) : 0;
 
   return (
-    <View style={styles.container}>
-      {/* ── 顶部：今日汇总 ── */}
+    <View style={styles.screen}>
+      {/* ── 头部 ── */}
       <View style={styles.header}>
-        <View style={styles.greeting}>
-          <Text style={styles.greetingText}>
-            {profile ? `你好，${profile.nickname}` : '你好'}
-          </Text>
-          <Text style={styles.dateText}>
+        <View>
+          <Text style={styles.greeting}>{profile ? `你好, ${profile.nickname}` : '你好'}</Text>
+          <Text style={styles.date}>
             {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' })}
           </Text>
         </View>
-
-        {/* 今日热量环 */}
-        <View style={styles.summaryCard}>
-          <ProgressCircle percentage={pct} size={130} label={`${today.totalCalories}`} sublabel={`/ ${dailyTarget}`} />
-          <View style={styles.macrosCol}>
-            <MacroRow icon="fish" color="#4CAF50" label="蛋白质" value={`${today.totalProtein}g`} />
-            <MacroRow icon="fast-food" color="#FFA726" label="碳水" value={`${today.totalCarbs}g`} />
-            <MacroRow icon="flame" color="#EF5350" label="脂肪" value={`${today.totalFat}g`} />
-          </View>
-        </View>
       </View>
 
-      {/* ── 中部：双按钮 ── */}
-      <View style={styles.actionArea}>
-        {/* 拍照按钮 */}
-        <TouchableOpacity
-          style={styles.captureBtn}
-          onPress={() => router.push('/capture')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.captureBtnInner}>
-            <View style={styles.captureIconWrap}>
-              <Ionicons name="camera" size={36} color="#FFFFFF" />
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* ── 今日热量卡片 ── */}
+        <View style={[styles.card, Shadow.elevated]}>
+          <Text style={styles.cardTitle}>今日摄入</Text>
+          <View style={styles.calorieRow}>
+            <ProgressCircle percentage={pct} size={140} strokeWidth={10} label={`${today.totalCalories}`} sublabel={`/ ${dailyTarget} kcal`} />
+            <View style={styles.macros}>
+              <MacroItem icon="fish-outline" color={Colors.protein} label="蛋白质" value={`${today.totalProtein}g`} />
+              <MacroItem icon="nutrition-outline" color={Colors.carbs} label="碳水" value={`${today.totalCarbs}g`} />
+              <MacroItem icon="flame-outline" color={Colors.fat} label="脂肪" value={`${today.totalFat}g`} />
             </View>
-            <View style={styles.captureTextWrap}>
-              <Text style={styles.captureTitle}>拍照识别</Text>
-              <Text style={styles.captureDesc}>拍摄食物 · AI 自动分析</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
           </View>
-        </TouchableOpacity>
+        </View>
 
-        {/* 查看记录按钮 */}
-        <TouchableOpacity
-          style={styles.historyBtn}
-          onPress={() => router.navigate('/(tabs)/history')}
-          activeOpacity={0.85}
-        >
-          <View style={styles.historyBtnInner}>
-            <View style={styles.historyIconWrap}>
-              <Ionicons name="time-outline" size={28} color="#4CAF50" />
+        {/* ── 双按钮 ── */}
+        <View style={styles.actions}>
+          {/* 拍照识别 */}
+          <TouchableOpacity style={[styles.primaryBtn, Shadow.button]} onPress={() => router.push('/capture')} activeOpacity={0.9}>
+            <View style={styles.primaryBtnIcon}>
+              <Ionicons name="camera" size={28} color="#FFFFFF" />
             </View>
-            <View style={styles.historyTextWrap}>
-              <Text style={styles.historyTitle}>查看记录</Text>
-              <Text style={styles.historyDesc}>
+            <View style={styles.primaryBtnText}>
+              <Text style={styles.primaryBtnTitle}>拍照识别</Text>
+              <Text style={styles.primaryBtnDesc}>拍摄食物 · AI 自动分析</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.7)" />
+          </TouchableOpacity>
+
+          {/* 查看记录 */}
+          <TouchableOpacity style={[styles.secondaryBtn, Shadow.card]} onPress={() => router.navigate('/(tabs)/history')} activeOpacity={0.9}>
+            <View style={styles.secondaryBtnIcon}>
+              <Ionicons name="time-outline" size={24} color={Colors.primary} />
+            </View>
+            <View style={styles.secondaryBtnText}>
+              <Text style={styles.secondaryBtnTitle}>查看记录</Text>
+              <Text style={styles.secondaryBtnDesc}>
                 {today.count > 0 ? `今日已记录 ${today.count} 餐` : '开始记录你的第一餐'}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="#9CA3AF" />
-          </View>
-        </TouchableOpacity>
-      </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
 
-      {/* ── 底部提示 ── */}
-      <View style={styles.footer}>
-        <Ionicons name="bulb-outline" size={16} color="#9CA3AF" />
-        <Text style={styles.footerText}>
-          {today.count === 0
-            ? '拍一张照片，开启你的健康饮食之旅'
-            : pct >= 100
-              ? '今日目标已达成，太棒了！'
-              : `还差 ${dailyTarget - today.totalCalories} kcal 达成今日目标`}
-        </Text>
-      </View>
+        {/* ── 底部提示 ── */}
+        <View style={styles.tip}>
+          <Ionicons name="bulb-outline" size={15} color={Colors.textTertiary} />
+          <Text style={styles.tipText}>
+            {today.count === 0
+              ? '拍一张照片，开启你的健康饮食之旅'
+              : pct >= 100
+                ? '今日目标已达成，太棒了！'
+                : `还差 ${dailyTarget - today.totalCalories} kcal 达成今日目标`}
+          </Text>
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
-function MacroRow({ icon, color, label, value }: { icon: any; color: string; label: string; value: string }) {
+function MacroItem({ icon, color, label, value }: { icon: any; color: string; label: string; value: string }) {
   return (
     <View style={macroStyles.row}>
-      <Ionicons name={icon} size={14} color={color} />
+      <Ionicons name={icon} size={15} color={color} />
       <Text style={macroStyles.label}>{label}</Text>
       <Text style={[macroStyles.value, { color }]}>{value}</Text>
     </View>
@@ -114,94 +114,84 @@ function MacroRow({ icon, color, label, value }: { icon: any; color: string; lab
 
 const macroStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  label: { fontSize: 13, color: '#9CA3AF', width: 36 },
+  label: { fontSize: 13, color: Colors.textTertiary, width: 44 },
   value: { fontSize: 14, fontWeight: '600' },
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  screen: { flex: 1, backgroundColor: Colors.bg },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 40 },
+
+  // 头部
   header: {
     paddingTop: 60,
-    paddingHorizontal: 24,
-    paddingBottom: 20,
-    backgroundColor: '#FAFAFA',
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.lg,
+    backgroundColor: Colors.bg,
   },
-  greeting: { marginBottom: 16 },
-  greetingText: { fontSize: 24, fontWeight: '700', color: '#1A1A2E' },
-  dateText: { fontSize: 14, color: '#9CA3AF', marginTop: 4 },
-  summaryCard: {
+  greeting: { ...Typography.largeTitle },
+  date: { ...Typography.caption, marginTop: 2 },
+
+  // 卡片
+  card: {
+    marginHorizontal: Spacing.xl,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+  },
+  cardTitle: { ...Typography.caption2, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Spacing.md },
+  calorieRow: { flexDirection: 'row', alignItems: 'center', gap: 24 },
+  macros: { flex: 1, gap: 10 },
+
+  // 按钮区域
+  actions: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.xxl, gap: 12 },
+
+  primaryBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    gap: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    padding: Spacing.xl,
   },
-  macrosCol: { flex: 1, gap: 10 },
-  actionArea: { paddingHorizontal: 24, paddingTop: 28, gap: 14 },
-  // 拍照大按钮
-  captureBtn: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 18,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  captureBtnInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 22,
-  },
-  captureIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  primaryBtnIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.md,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  captureTextWrap: { flex: 1, marginLeft: 18 },
-  captureTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
-  captureDesc: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
-  // 查看记录按钮
-  historyBtn: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-  },
-  historyBtnInner: {
+  primaryBtnText: { flex: 1, marginLeft: Spacing.lg },
+  primaryBtnTitle: { fontSize: 19, fontWeight: '700', color: '#FFFFFF' },
+  primaryBtnDesc: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 3 },
+
+  secondaryBtn: {
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
+    padding: Spacing.lg,
   },
-  historyIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#E8F5E9',
+  secondaryBtnIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  historyTextWrap: { flex: 1, marginLeft: 16 },
-  historyTitle: { fontSize: 18, fontWeight: '600', color: '#1A1A2E' },
-  historyDesc: { fontSize: 13, color: '#9CA3AF', marginTop: 4 },
-  // 底部
-  footer: {
+  secondaryBtnText: { flex: 1, marginLeft: Spacing.lg },
+  secondaryBtnTitle: { fontSize: 17, fontWeight: '600', color: Colors.text },
+  secondaryBtnDesc: { fontSize: 13, color: Colors.textSecondary, marginTop: 3 },
+
+  // 底部提示
+  tip: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    marginTop: 'auto',
+    paddingTop: Spacing.xxxl,
     gap: 6,
   },
-  footerText: { fontSize: 13, color: '#9CA3AF' },
+  tipText: { ...Typography.caption },
 });

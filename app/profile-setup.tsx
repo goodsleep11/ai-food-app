@@ -13,13 +13,9 @@ import {
 import { router } from 'expo-router';
 import { UserProfile, DIETARY_OPTIONS, estimateDailyCalories, GOAL_LABELS } from '../types';
 import { saveProfile } from '../utils/storage';
+import { Colors, Typography, Shadow, Radius, Spacing } from '../constants/theme';
 
-/**
- * 首次使用时的健康档案设置页面
- * 强制填写所有必填项后才可进入主界面
- */
 export default function ProfileSetupScreen() {
-  // ---- 表单状态 ----
   const [nickname, setNickname] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState<UserProfile['gender']>('male');
@@ -30,29 +26,44 @@ export default function ProfileSetupScreen() {
   const [customRestriction, setCustomRestriction] = useState('');
   const [dailyCalorieTarget, setDailyCalorieTarget] = useState('');
 
-  // ---- 切换饮食限制标签 ----
   const toggleRestriction = (item: string) => {
     setDietaryRestrictions((prev) =>
       prev.includes(item) ? prev.filter((r) => r !== item) : [...prev, item]
     );
   };
 
-  // ---- 自动估算热量 ----
   const handleAutoEstimate = () => {
     const w = parseFloat(weight);
     const h = parseFloat(height);
     const a = parseInt(age);
     if (w && h && a) {
-      const estimated = estimateDailyCalories(gender, w, h, a, goal);
-      setDailyCalorieTarget(estimated.toString());
+      setDailyCalorieTarget(estimateDailyCalories(gender, w, h, a, goal).toString());
     } else {
       Alert.alert('提示', '请先填写体重、身高和年龄');
     }
   };
 
-  // ---- 保存档案 ----
+  const handleGenderChange = (g: UserProfile['gender']) => {
+    setGender(g);
+    const w = parseFloat(weight);
+    const h = parseFloat(height);
+    const a = parseInt(age);
+    if (w && h && a) {
+      setDailyCalorieTarget(estimateDailyCalories(g, w, h, a, goal).toString());
+    }
+  };
+
+  const handleGoalChange = (g: UserProfile['goal']) => {
+    setGoal(g);
+    const w = parseFloat(weight);
+    const h = parseFloat(height);
+    const a = parseInt(age);
+    if (w && h && a) {
+      setDailyCalorieTarget(estimateDailyCalories(gender, w, h, a, g).toString());
+    }
+  };
+
   const handleSave = async () => {
-    // 校验必填项
     if (!nickname.trim()) return Alert.alert('提示', '请输入昵称');
     if (!age || isNaN(Number(age))) return Alert.alert('提示', '请输入有效年龄');
     if (!height || isNaN(Number(height))) return Alert.alert('提示', '请输入有效身高');
@@ -74,69 +85,61 @@ export default function ProfileSetupScreen() {
 
     try {
       await saveProfile(profile);
-      router.replace('/(tabs)/history');
+      router.replace('/(tabs)');
     } catch {
       Alert.alert('错误', '保存失败，请重试');
     }
   };
 
-  // ---- 渲染 ----
   return (
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* 顶部标题 */}
+      <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
+        {/* 标题 */}
         <View style={styles.header}>
-          <Text style={styles.headerIcon}>📋</Text>
+          <View style={styles.headerIcon}>
+            <Text style={styles.headerIconText}>📋</Text>
+          </View>
           <Text style={styles.headerTitle}>设置健康档案</Text>
           <Text style={styles.headerDesc}>AI 将根据您的个人档案提供个性化饮食建议</Text>
         </View>
 
         {/* 基本信息 */}
-        <View style={styles.section}>
+        <View style={[styles.section, Shadow.card]}>
           <Text style={styles.sectionLabel}>基本信息</Text>
 
-          <FormField label="昵称">
+          <Field label="昵称">
             <TextInput
               style={styles.input}
               value={nickname}
               onChangeText={setNickname}
               placeholder="请输入您的昵称"
-              placeholderTextColor="#D1D5DB"
+              placeholderTextColor={Colors.textTertiary}
               maxLength={20}
             />
-          </FormField>
+          </Field>
 
-          <FormField label="年龄">
+          <Field label="年龄">
             <TextInput
               style={styles.input}
               value={age}
               onChangeText={setAge}
               placeholder="请输入年龄"
-              placeholderTextColor="#D1D5DB"
+              placeholderTextColor={Colors.textTertiary}
               keyboardType="number-pad"
               maxLength={3}
             />
-          </FormField>
+          </Field>
 
-          <FormField label="性别">
+          <Field label="性别">
             <View style={styles.optionRow}>
               {(['male', 'female', 'other'] as const).map((g) => (
                 <TouchableOpacity
                   key={g}
                   style={[styles.optionBtn, gender === g && styles.optionBtnActive]}
-                  onPress={() => {
-                    setGender(g);
-                    // 性别改变后重新估算热量
-                    const w = parseFloat(weight);
-                    const h = parseFloat(height);
-                    const a = parseInt(age);
-                    if (w && h && a) {
-                      setDailyCalorieTarget(estimateDailyCalories(g, w, h, a, goal).toString());
-                    }
-                  }}
+                  onPress={() => handleGenderChange(g)}
                 >
                   <Text style={[styles.optionText, gender === g && styles.optionTextActive]}>
                     {g === 'male' ? '男' : g === 'female' ? '女' : '其他'}
@@ -144,56 +147,47 @@ export default function ProfileSetupScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-          </FormField>
+          </Field>
 
           <View style={styles.rowFields}>
             <View style={{ flex: 1, marginRight: 10 }}>
-              <FormField label="身高 (cm)">
+              <Field label="身高 (cm)">
                 <TextInput
                   style={styles.input}
                   value={height}
                   onChangeText={setHeight}
                   placeholder="如 170"
-                  placeholderTextColor="#D1D5DB"
+                  placeholderTextColor={Colors.textTertiary}
                   keyboardType="decimal-pad"
                   maxLength={5}
                 />
-              </FormField>
+              </Field>
             </View>
             <View style={{ flex: 1 }}>
-              <FormField label="体重 (kg)">
+              <Field label="体重 (kg)">
                 <TextInput
                   style={styles.input}
                   value={weight}
                   onChangeText={setWeight}
                   placeholder="如 65"
-                  placeholderTextColor="#D1D5DB"
+                  placeholderTextColor={Colors.textTertiary}
                   keyboardType="decimal-pad"
                   maxLength={5}
                 />
-              </FormField>
+              </Field>
             </View>
           </View>
         </View>
 
         {/* 饮食目标 */}
-        <View style={styles.section}>
+        <View style={[styles.section, Shadow.card]}>
           <Text style={styles.sectionLabel}>饮食目标</Text>
           <View style={styles.optionRow}>
             {(['lose_fat', 'gain_muscle', 'maintain'] as const).map((g) => (
               <TouchableOpacity
                 key={g}
                 style={[styles.goalBtn, goal === g && styles.goalBtnActive]}
-                onPress={() => {
-                  setGoal(g);
-                  // 目标改变后重新估算热量
-                  const w = parseFloat(weight);
-                  const h = parseFloat(height);
-                  const a = parseInt(age);
-                  if (w && h && a) {
-                    setDailyCalorieTarget(estimateDailyCalories(gender, w, h, a, g).toString());
-                  }
-                }}
+                onPress={() => handleGoalChange(g)}
               >
                 <Text style={styles.goalEmoji}>
                   {g === 'lose_fat' ? '🔥' : g === 'gain_muscle' ? '💪' : '⚖️'}
@@ -207,40 +201,32 @@ export default function ProfileSetupScreen() {
         </View>
 
         {/* 饮食限制 */}
-        <View style={styles.section}>
+        <View style={[styles.section, Shadow.card]}>
           <Text style={styles.sectionLabel}>饮食限制（可多选）</Text>
           <View style={styles.tagGrid}>
             {DIETARY_OPTIONS.map((item) => (
               <TouchableOpacity
                 key={item}
-                style={[
-                  styles.tag,
-                  dietaryRestrictions.includes(item) && styles.tagActive,
-                ]}
+                style={[styles.tag, dietaryRestrictions.includes(item) && styles.tagActive]}
                 onPress={() => toggleRestriction(item)}
               >
-                <Text
-                  style={[
-                    styles.tagText,
-                    dietaryRestrictions.includes(item) && styles.tagTextActive,
-                  ]}
-                >
+                <Text style={[styles.tagText, dietaryRestrictions.includes(item) && styles.tagTextActive]}>
                   {item}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
           <TextInput
-            style={[styles.input, { marginTop: 10 }]}
+            style={[styles.input, { marginTop: Spacing.md }]}
             value={customRestriction}
             onChangeText={setCustomRestriction}
             placeholder="其他自定义限制（选填）"
-            placeholderTextColor="#D1D5DB"
+            placeholderTextColor={Colors.textTertiary}
           />
         </View>
 
         {/* 每日目标热量 */}
-        <View style={styles.section}>
+        <View style={[styles.section, Shadow.card]}>
           <Text style={styles.sectionLabel}>每日目标热量 (kcal)</Text>
           <View style={styles.calorieRow}>
             <TextInput
@@ -248,7 +234,7 @@ export default function ProfileSetupScreen() {
               value={dailyCalorieTarget}
               onChangeText={setDailyCalorieTarget}
               placeholder="如 2000"
-              placeholderTextColor="#D1D5DB"
+              placeholderTextColor={Colors.textTertiary}
               keyboardType="number-pad"
               maxLength={5}
             />
@@ -256,24 +242,21 @@ export default function ProfileSetupScreen() {
               <Text style={styles.estimateBtnText}>自动估算</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.hint}>
-            根据您的身高体重和运动目标，系统可自动计算推荐值
-          </Text>
+          <Text style={styles.hint}>根据您的身高体重和运动目标自动计算推荐值</Text>
         </View>
 
         {/* 保存按钮 */}
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.8}>
+        <TouchableOpacity style={[styles.saveBtn, Shadow.button]} onPress={handleSave} activeOpacity={0.9}>
           <Text style={styles.saveBtnText}>完成设置，开始使用</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 50 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-// ---- 表单字段包装组件 ----
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={styles.fieldContainer}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -282,135 +265,118 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-// ==================== 样式 ====================
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
+    backgroundColor: Colors.bg,
+    paddingHorizontal: Spacing.xl,
   },
   header: {
     alignItems: 'center',
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 24,
+    paddingBottom: Spacing.xxl,
   },
-  headerIcon: { fontSize: 40, marginBottom: 12 },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#1A1A2E' },
-  headerDesc: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
+  headerIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+    ...Shadow.card,
   },
+  headerIconText: { fontSize: 32 },
+  headerTitle: { ...Typography.largeTitle },
+  headerDesc: { ...Typography.caption, textAlign: 'center', marginTop: Spacing.sm, lineHeight: 20 },
   section: {
-    marginBottom: 24,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
+    marginBottom: Spacing.lg,
+    backgroundColor: Colors.card,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
   },
   sectionLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1A1A2E',
-    marginBottom: 14,
+    ...Typography.caption2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: Spacing.lg,
   },
-  fieldContainer: { marginBottom: 14 },
-  fieldLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 6,
-  },
+  fieldContainer: { marginBottom: Spacing.md },
+  fieldLabel: { fontSize: 13, color: Colors.textSecondary, marginBottom: 6 },
   input: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    backgroundColor: Colors.cardSecondary,
+    borderRadius: Radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#1A1A2E',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    color: Colors.text,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
   },
   rowFields: { flexDirection: 'row' },
-  optionRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+  optionRow: { flexDirection: 'row', gap: 10 },
   optionBtn: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: Radius.md,
+    backgroundColor: Colors.cardSecondary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
     alignItems: 'center',
   },
   optionBtnActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
-  optionText: { fontSize: 15, color: '#6B7280' },
-  optionTextActive: { color: '#4CAF50', fontWeight: '600' },
+  optionText: { fontSize: 15, color: Colors.textSecondary },
+  optionTextActive: { color: Colors.primary, fontWeight: '600' },
   goalBtn: {
     flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    paddingVertical: Spacing.lg,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.cardSecondary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
     alignItems: 'center',
   },
   goalBtnActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
   goalEmoji: { fontSize: 24, marginBottom: 6 },
-  goalText: { fontSize: 14, color: '#6B7280' },
-  goalTextActive: { color: '#4CAF50', fontWeight: '600' },
-  tagGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  goalText: { fontSize: 14, color: Colors.textSecondary },
+  goalTextActive: { color: Colors.primary, fontWeight: '600' },
+  tagGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: Radius.full,
+    backgroundColor: Colors.cardSecondary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
   },
   tagActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
-  tagText: { fontSize: 13, color: '#6B7280' },
-  tagTextActive: { color: '#4CAF50', fontWeight: '500' },
+  tagText: { fontSize: 13, color: Colors.textSecondary },
+  tagTextActive: { color: Colors.primary, fontWeight: '500' },
   calorieRow: { flexDirection: 'row', alignItems: 'center' },
   estimateBtn: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: Colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: Radius.md,
   },
   estimateBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '500' },
-  hint: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 8,
-  },
+  hint: { fontSize: 12, color: Colors.textTertiary, marginTop: Spacing.sm },
   saveBtn: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    borderRadius: 14,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.lg,
+    borderRadius: Radius.lg,
     alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    marginTop: Spacing.sm,
   },
   saveBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
 });

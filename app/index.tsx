@@ -5,38 +5,35 @@ import { getProfile } from '../utils/storage';
 
 export default function SplashScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // 入场动画
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, friction: 6, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }),
     ]).start();
 
-    // 加载点动画
     const dotAnim = Animated.loop(
-      Animated.stagger(200, [
+      Animated.stagger(180, [
         Animated.sequence([
-          Animated.timing(dot1, { toValue: 1, duration: 200, useNativeDriver: true }),
-          Animated.timing(dot1, { toValue: 0, duration: 200, useNativeDriver: true }),
+          Animated.timing(dot1, { toValue: 1, duration: 180, useNativeDriver: true }),
+          Animated.timing(dot1, { toValue: 0, duration: 180, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(dot2, { toValue: 1, duration: 200, useNativeDriver: true }),
-          Animated.timing(dot2, { toValue: 0, duration: 200, useNativeDriver: true }),
+          Animated.timing(dot2, { toValue: 1, duration: 180, useNativeDriver: true }),
+          Animated.timing(dot2, { toValue: 0, duration: 180, useNativeDriver: true }),
         ]),
         Animated.sequence([
-          Animated.timing(dot3, { toValue: 1, duration: 200, useNativeDriver: true }),
-          Animated.timing(dot3, { toValue: 0, duration: 200, useNativeDriver: true }),
+          Animated.timing(dot3, { toValue: 1, duration: 180, useNativeDriver: true }),
+          Animated.timing(dot3, { toValue: 0, duration: 180, useNativeDriver: true }),
         ]),
       ])
     );
     dotAnim.start();
 
-    // 检查档案并跳转
     const timer = setTimeout(async () => {
       dotAnim.stop();
       try {
@@ -49,7 +46,7 @@ export default function SplashScreen() {
       } catch {
         router.replace('/profile-setup');
       }
-    }, 1500);
+    }, 1600);
 
     return () => {
       clearTimeout(timer);
@@ -58,14 +55,16 @@ export default function SplashScreen() {
   }, []);
 
   const dotStyle = (anim: Animated.Value) => ({
-    opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }),
-    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.2] }) }],
+    opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.3] }) }],
   });
 
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.logoWrap, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
-        <Text style={styles.logo}>🥗</Text>
+        <View style={styles.logoCircle}>
+          <Text style={styles.logo}>🥗</Text>
+        </View>
         <Text style={styles.title}>AI 食物识别助手</Text>
         <Text style={styles.subtitle}>拍照识别 · 精准热量 · 健康饮食</Text>
       </Animated.View>
@@ -81,40 +80,49 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F2F2F7',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
   },
-  logoWrap: {
+  logoWrap: { alignItems: 'center' },
+  logoCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
-  },
-  logo: {
-    fontSize: 80,
+    justifyContent: 'center',
     marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
+  logo: { fontSize: 52 },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
-    color: '#1A1A2E',
-    marginBottom: 10,
-    letterSpacing: 1,
+    color: '#1C1C1E',
+    marginBottom: 8,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#9CA3AF',
-    letterSpacing: 2,
+    fontSize: 15,
+    color: '#8E8E93',
+    letterSpacing: 1,
   },
   dotRow: {
     flexDirection: 'row',
     position: 'absolute',
-    bottom: 100,
-    gap: 10,
+    bottom: 90,
+    gap: 8,
   },
   dot: {
-    width: 8,
-    height: 8,
+    width: 7,
+    height: 7,
     borderRadius: 4,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#34C759',
   },
 });

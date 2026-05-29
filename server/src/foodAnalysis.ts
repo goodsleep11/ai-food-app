@@ -1,13 +1,15 @@
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 
 // ============================================================
-//  DeepSeek API 客户端初始化
-//  DeepSeek 兼容 OpenAI SDK，只需修改 baseURL 指向 DeepSeek
+//  Anthropic SDK 客户端 → DeepSeek 后端
+//  使用 Anthropic 原生图片格式，DeepSeek V4 Pro 支持多模态识图
 // ============================================================
-const openai = new OpenAI({
+const anthropic = new Anthropic({
   apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com',
+  baseURL: 'https://api.deepseek.com/anthropic',
 });
+
+const VISION_MODEL = 'deepseek-v4-pro';
 
 // 用户档案类型
 interface UserProfile {
@@ -23,14 +25,9 @@ interface UserProfile {
 }
 
 // ============================================================
-//  联网搜索模块 —— 全部在用户本地终端运行
-//  无需任何第三方搜索 API Key，使用 DuckDuckGo 免费接口
+//  联网搜索模块
 // ============================================================
 
-/**
- * 从 DuckDuckGo Instant Answer API 搜索营养参考数据
- * 完全免费，无需注册，数据在本地终端处理
- */
 async function searchDuckDuckGo(query: string): Promise<string> {
   try {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
@@ -42,7 +39,6 @@ async function searchDuckDuckGo(query: string): Promise<string> {
 
     const data: any = await response.json();
 
-    // 提取 Abstract（摘要）和 RelatedTopics（相关主题）
     const parts: string[] = [];
     if (data.AbstractText && data.AbstractText.trim()) {
       parts.push(data.AbstractText);
@@ -56,14 +52,10 @@ async function searchDuckDuckGo(query: string): Promise<string> {
     }
     return parts.join(' | ') || '';
   } catch {
-    return ''; // 搜索失败不阻塞流程，静默降级
+    return '';
   }
 }
 
-/**
- * 从 DuckDuckGo HTML 版抓取搜索结果摘要（备用方案）
- * 当 Instant Answer API 无结果时自动降级
- */
 async function searchDuckDuckGoHTML(query: string): Promise<string> {
   try {
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
@@ -80,7 +72,6 @@ async function searchDuckDuckGoHTML(query: string): Promise<string> {
 
     const html = await response.text();
 
-    // 用正则提取搜索结果摘要（class="result__snippet"）
     const snippets: string[] = [];
     const snippetRegex = /class="result__snippet"[^>]*>([\s\S]*?)<\/td>/gi;
     let match;
@@ -98,58 +89,50 @@ async function searchDuckDuckGoHTML(query: string): Promise<string> {
   }
 }
 
-/**
- * 联网搜索食物营养参考数据
- * 采用双层策略：Instant Answer API → HTML 抓取（自动降级）
- * 搜索多个维度的营养数据，合并返回
- */
 async function fetchNutritionFromWeb(foodNames: string[]): Promise<string> {
   if (foodNames.length === 0) return '';
 
-  // 为每种食物构造搜索词
   const queries = foodNames.flatMap((name) => [
     `${name} 热量 每100克 营养成分`,
     `${name} calories per 100g nutrition facts`,
     `${name} 蛋白质 碳水 脂肪`,
   ]);
 
-  // 并行搜索所有 query（最多 3 个食物 × 3 种查询 = 9 个并发请求）
   const results = await Promise.all(
     queries.slice(0, 6).map(async (q) => {
-      // 先尝试 Instant Answer API
       const instantResult = await searchDuckDuckGo(q);
       if (instantResult) return instantResult;
-
-      // 降级到 HTML 抓取
       return searchDuckDuckGoHTML(q);
     })
   );
 
-  // 过滤空结果，去重合并
   const validResults = results.filter((r) => r.length > 10);
   const uniqueResults = [...new Set(validResults)];
   return uniqueResults.slice(0, 4).join('\n---\n');
 }
 
 // ============================================================
-//  DeepSeek Vision API 调用
+//  DeepSeek Vision API 调用（Anthropic 原生格式）
 // ============================================================
 
 /**
- * 调用 DeepSeek 视觉模型识别图片中的食物
- * 返回初步的食物名称列表
+ * 使用 Anthropic 原生图片格式调用 DeepSeek 视觉模型识别食物
  */
-async function identifyFoodsWithDeepSeek(imageBase64: string): Promise<string[]> {
-  const response = await openai.chat.completions.create({
-    model: 'deepseek-chat',
+async function identifyFoodsWithVision(imageBase64: string): Promise<string[]> {
+  const response = await anthropic.messages.create({
+    model: VISION_MODEL,
     max_tokens: 300,
     messages: [
       {
         role: 'user',
         content: [
           {
-            type: 'image_url',
-            image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg' as const,
+              data: imageBase64,
+            },
           },
           {
             type: 'text',
@@ -160,7 +143,11 @@ async function identifyFoodsWithDeepSeek(imageBase64: string): Promise<string[]>
     ],
   });
 
-  const text = response.choices[0]?.message?.content || '';
+  const text = response.content
+    .filter((block) => block.type === 'text')
+    .map((block) => (block as any).text)
+    .join('\n');
+
   return text
     .split('\n')
     .map((line) => line.replace(/^\d+[\.\)]\s*/, '').trim())
@@ -168,15 +155,13 @@ async function identifyFoodsWithDeepSeek(imageBase64: string): Promise<string[]>
 }
 
 /**
- * 核心：调用 DeepSeek 做完整的食物营养分析
- * 将图片 + 联网搜索结果 + 用户档案一起发给 DeepSeek
+ * 核心：调用 DeepSeek V4 Pro 做完整食物营养分析
  */
-async function deepSeekFullAnalysis(
+async function visionFullAnalysis(
   imageBase64: string,
   profile: UserProfile,
   webReference: string
 ): Promise<any> {
-  // 构造饮食限制描述
   const restrictions = profile.dietaryRestrictions.join('、');
   const customRestriction = profile.customRestriction
     ? `，额外限制：${profile.customRestriction}`
@@ -191,7 +176,6 @@ async function deepSeekFullAnalysis(
     maintain: '维持体重',
   };
 
-  // 联网参考数据截断（控制 prompt 长度）
   const webRefSnippet = webReference
     ? webReference.slice(0, 2000)
     : '（无联网参考数据，请使用你的训练知识估算）';
@@ -236,20 +220,21 @@ ${webRefSnippet}
 - 每项营养素都是必填数字
 - 份量要用中文描述具体数量`;
 
-  const response = await openai.chat.completions.create({
-    model: 'deepseek-chat',
+  const response = await anthropic.messages.create({
+    model: VISION_MODEL,
     max_tokens: 1024,
+    system: systemPrompt,
     messages: [
-      {
-        role: 'system',
-        content: systemPrompt,
-      },
       {
         role: 'user',
         content: [
           {
-            type: 'image_url',
-            image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg' as const,
+              data: imageBase64,
+            },
           },
           {
             type: 'text',
@@ -260,46 +245,36 @@ ${webRefSnippet}
     ],
   });
 
-  return response.choices[0]?.message?.content || '';
+  return response.content
+    .filter((block) => block.type === 'text')
+    .map((block) => (block as any).text)
+    .join('\n');
 }
 
 // ============================================================
-//  主分析流程（对外暴露的唯一入口）
+//  主分析流程
 // ============================================================
 
-/**
- * 分析食物图片 —— 完整流水线
- *
- * 流程：
- *  1. DeepSeek 识别图片中的食物名称
- *  2. 根据食物名称联网搜索营养参考数据（在用户本地终端执行）
- *  3. 将图片 + 联网数据 + 用户档案一起发给 DeepSeek 做精确分析
- *  4. 解析 JSON → 后端本地计算汇总、占比、个性化建议
- *  5. 返回结构化结果
- *
- * 全部计算在用户终端/服务器完成，不经过第三方
- */
 export async function analyzeFood(
   imageBase64: string,
   profile: UserProfile
 ) {
-  // ---- Step 1: 识别食物名称 ----
-  console.log('🔍 Step 1: DeepSeek 识别图片中的食物...');
-  const foodNames = await identifyFoodsWithDeepSeek(imageBase64);
+  // Step 1: 视觉识别食物
+  console.log('🔍 Step 1: Vision 识别图片中的食物...');
+  const foodNames = await identifyFoodsWithVision(imageBase64);
   console.log(`   识别到 ${foodNames.length} 种食物: ${foodNames.join(', ') || '无'}`);
 
-  // ---- Step 2: 联网搜索营养数据 ----
+  // Step 2: 联网搜索营养数据
   console.log('🌐 Step 2: 联网搜索营养参考数据...');
   const webReference = await fetchNutritionFromWeb(foodNames);
   console.log(`   获取到 ${webReference.length} 字符的参考数据`);
 
-  // ---- Step 3: DeepSeek 完整分析 ----
-  console.log('🤖 Step 3: DeepSeek 深度分析...');
-  const rawResponse = await deepSeekFullAnalysis(imageBase64, profile, webReference);
+  // Step 3: Vision 完整分析
+  console.log('🤖 Step 3: Vision 深度分析...');
+  const rawResponse = await visionFullAnalysis(imageBase64, profile, webReference);
 
-  // ---- Step 4: 解析 JSON ----
+  // Step 4: 解析 JSON
   let jsonStr = rawResponse.trim();
-  // 处理可能的 markdown 代码块包裹
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) {
     jsonStr = jsonMatch[1].trim();
@@ -321,23 +296,20 @@ export async function analyzeFood(
     }
   }
 
-  // ---- Step 5: 本地计算汇总（全部在用户终端完成） ----
+  // Step 5: 本地计算汇总
   const foods = Array.isArray(aiResult.foods) ? aiResult.foods : [];
   const totalCalories = foods.reduce((sum: number, f: any) => sum + (f.calories || 0), 0);
   const totalProtein = foods.reduce((sum: number, f: any) => sum + (f.protein || 0), 0);
   const totalCarbs = foods.reduce((sum: number, f: any) => sum + (f.carbs || 0), 0);
   const totalFat = foods.reduce((sum: number, f: any) => sum + (f.fat || 0), 0);
 
-  // 占每日目标百分比
   const caloriePercentage =
     profile.dailyCalorieTarget > 0
       ? Math.round((totalCalories / profile.dailyCalorieTarget) * 100)
       : 0;
 
-  // 饮食合规检查
   const isCompliant = !(aiResult.warnings && aiResult.warnings.length > 0);
 
-  // 生成个性化建议
   let goalAdvice = aiResult.generalAdvice || '';
   if (!goalAdvice) {
     if (profile.goal === 'lose_fat' && caloriePercentage > 35) {
@@ -363,7 +335,6 @@ export async function analyzeFood(
     warnings: aiResult.warnings || [],
     suggestions: goalAdvice,
     isCompliant,
-    // 附加联网搜索摘要，前端可选择展示
     webSearchSummary: webReference
       ? `已联网查询 ${foodNames.length} 种食物的营养数据`
       : '使用 AI 内置知识库分析',
@@ -375,12 +346,12 @@ export async function analyzeFood(
  */
 export async function checkDeepSeekHealth(): Promise<boolean> {
   try {
-    const response = await openai.chat.completions.create({
-      model: 'deepseek-chat',
+    const response = await anthropic.messages.create({
+      model: VISION_MODEL,
       max_tokens: 10,
       messages: [{ role: 'user', content: 'Ping' }],
     });
-    return !!response.choices[0]?.message?.content;
+    return response.content.length > 0;
   } catch {
     return false;
   }
