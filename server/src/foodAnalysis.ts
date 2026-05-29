@@ -1,11 +1,12 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 
-const anthropic = new Anthropic({
+// DeepSeek 原生 OpenAI 兼容端点 — 支持 image_url 视觉识别
+const openai = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com/anthropic',
+  baseURL: 'https://api.deepseek.com',
 });
 
-const VISION_MODEL = 'deepseek-v4-pro';
+const MODEL = 'deepseek-chat';
 
 interface UserProfile {
   nickname: string;
@@ -26,7 +27,7 @@ interface HistoryItem {
 }
 
 // ============================================================
-//  联网搜索（同上）
+//  联网搜索
 // ============================================================
 
 async function searchDuckDuckGo(query: string): Promise<string> {
@@ -79,7 +80,6 @@ async function fetchNutritionFromWeb(foodNames: string[]): Promise<string> {
   const queries = foodNames.flatMap((name) => [
     `${name} 热量 每100克 营养成分`,
     `${name} calories per 100g nutrition facts`,
-    `${name} 蛋白质 碳水 脂肪`,
   ]);
   const results = await Promise.all(
     queries.slice(0, 6).map(async (q) => {
@@ -94,12 +94,9 @@ async function fetchNutritionFromWeb(foodNames: string[]): Promise<string> {
 }
 
 // ============================================================
-//  多模态分析（核心改进）
+//  历史上下文
 // ============================================================
 
-/**
- * 构建用户历史饮食上下文
- */
 function buildHistoryContext(history: HistoryItem[]): string {
   if (!history || history.length === 0) return '';
 
@@ -121,17 +118,17 @@ function buildHistoryContext(history: HistoryItem[]): string {
 `;
 }
 
-/**
- * 统一的多模态分析 —— 一键完成识别 + 营养分析
- * 图片 + 文字描述（可选）+ 历史上下文 → 精确分析
- */
+// ============================================================
+//  多模态分析（图片 + 文字 + 历史）
+// ============================================================
+
 async function multimodalAnalysis(
   imageBase64: string,
   textDescription: string,
   profile: UserProfile,
   webReference: string,
   historyContext: string
-): Promise<any> {
+): Promise<string> {
   const goalMap: Record<string, string> = {
     lose_fat: '减脂',
     gain_muscle: '增肌',
@@ -139,7 +136,9 @@ async function multimodalAnalysis(
   };
 
   const restrictions = profile.dietaryRestrictions.join('、');
-  const customRestriction = profile.customRestriction ? `，额外限制：${profile.customRestriction}` : '';
+  const customRestriction = profile.customRestriction
+    ? `，额外限制：${profile.customRestriction}`
+    : '';
   const restrictionText = restrictions
     ? `用户饮食限制：${restrictions}${customRestriction}`
     : '用户无特殊饮食限制';
@@ -148,7 +147,6 @@ async function multimodalAnalysis(
     ? webReference.slice(0, 2000)
     : '（无联网参考数据，请使用你的训练知识估算）';
 
-  // 用户文字描述
   const descriptionBlock = textDescription
     ? `\n【用户对食物的描述】: ${textDescription}\n请以用户描述为准，结合图片进行精确识别。`
     : '';
@@ -185,7 +183,7 @@ ${webRefSnippet}
 {
   "foods": [
     {
-      "name": "食物名称（中文，尽量具体，如：红烧排骨、番茄炒蛋）",
+      "name": "食物名称（中文，尽量具体，如：红烧排骨、番茄炒蛋、白米饭）",
       "portion": "份量估算（如：约200g/约1碗/约1份）",
       "calories": 数字(千卡),
       "protein": 数字(克),
@@ -194,7 +192,7 @@ ${webRefSnippet}
     }
   ],
   "warnings": ["饮食限制违规警告，无则空数组"],
-  "generalAdvice": "2-3句个性化建议，结合用户目标、今日已摄入情况、营养均衡度，给出具体的行动建议（不要说空话，要具体到食物替换、份量调整）"
+  "generalAdvice": "2-3句个性化建议，结合用户目标、今日已摄入、营养均衡度，给出具体可执行的建议"
 }
 
 重要规则：
@@ -203,40 +201,67 @@ ${webRefSnippet}
 - 中餐菜名要具体（不要只写"肉"、"菜"这种模糊名称）
 - generalAdvice 必须基于实际数据给出具体建议`;
 
-  // 构建 messages 内容
-  const contentBlocks: any[] = [];
-
-  // 图片
-  contentBlocks.push({
-    type: 'image',
-    source: {
-      type: 'base64',
-      media_type: 'image/jpeg' as const,
-      data: imageBase64,
-    },
-  });
-
-  // 文字提示
-  contentBlocks.push({
-    type: 'text',
-    text: userPrompt,
-  });
-
-  const response = await anthropic.messages.create({
-    model: VISION_MODEL,
+  const response = await openai.chat.completions.create({
+    model: MODEL,
     max_tokens: 1536,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: contentBlocks }],
+    messages: [
+      { role: 'system', content: systemPrompt },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${imageBase64}`,
+            },
+          },
+          {
+            type: 'text',
+            text: userPrompt,
+          },
+        ],
+      },
+    ],
   });
 
-  return response.content
-    .filter((block) => block.type === 'text')
-    .map((block) => (block as any).text)
-    .join('\n');
+  return response.choices[0]?.message?.content || '';
+}
+
+/**
+ * 仅从图片快速识别食物名称（用于联网搜索关键词）
+ */
+async function identifyFoodsFromImage(imageBase64: string): Promise<string[]> {
+  const response = await openai.chat.completions.create({
+    model: MODEL,
+    max_tokens: 200,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${imageBase64}`,
+            },
+          },
+          {
+            type: 'text',
+            text: '列出图片中所有食物和饮品的名称，每行一个，只返回名称。如果无法识别返回"无法识别"。',
+          },
+        ],
+      },
+    ],
+  });
+
+  const text = response.choices[0]?.message?.content || '';
+  return text
+    .split('\n')
+    .map((line) => line.replace(/^\d+[\.\)]\s*/, '').trim())
+    .filter((line) => line.length > 0 && line !== '无法识别');
 }
 
 // ============================================================
-//  主分析流程（对外暴露）
+//  主分析流程
 // ============================================================
 
 export async function analyzeFood(
@@ -247,20 +272,18 @@ export async function analyzeFood(
 ) {
   const desc = (textDescription || '').trim();
 
-  // Step 1: 从文字描述和图片中提取食物名称（用于联网搜索）
+  // Step 1: 提取食物名称
   let foodNames: string[] = [];
   if (desc) {
-    // 用户有描述，直接用描述中的关键词
     foodNames = desc.split(/[,，、\s]+/).filter((n) => n.length > 0);
     console.log(`📝 用户描述食物: ${foodNames.join(', ')}`);
   } else {
-    // 无描述，从图片快速识别
     console.log('🔍 Step 1: Vision 识别图片中的食物...');
     foodNames = await identifyFoodsFromImage(imageBase64);
   }
   console.log(`   食物关键词: ${foodNames.join(', ') || '无'}`);
 
-  // Step 2: 联网搜索营养数据
+  // Step 2: 联网搜索
   console.log('🌐 Step 2: 联网搜索营养参考数据...');
   const webReference = await fetchNutritionFromWeb(foodNames);
   console.log(`   获取到 ${webReference.length} 字符的参考数据`);
@@ -268,8 +291,8 @@ export async function analyzeFood(
   // Step 3: 构建历史上下文
   const historyContext = buildHistoryContext(recentHistory || []);
 
-  // Step 4: 多模态完整分析（图片 + 文字 + 历史 → 一步到位）
-  console.log('🤖 Step 3: 多模态深度分析...');
+  // Step 4: 多模态分析
+  console.log('🤖 Step 3: 多模态深度分析（图片 + 文字 + 历史）...');
   const rawResponse = await multimodalAnalysis(
     imageBase64,
     desc,
@@ -299,7 +322,7 @@ export async function analyzeFood(
     }
   }
 
-  // Step 6: 本地计算汇总
+  // Step 6: 计算汇总
   const foods = Array.isArray(aiResult.foods) ? aiResult.foods : [];
   const totalCalories = foods.reduce((sum: number, f: any) => sum + (f.calories || 0), 0);
   const totalProtein = foods.reduce((sum: number, f: any) => sum + (f.protein || 0), 0);
@@ -336,51 +359,14 @@ export async function analyzeFood(
   };
 }
 
-/**
- * 仅从图片快速识别食物名称（用于联网搜索关键词）
- */
-async function identifyFoodsFromImage(imageBase64: string): Promise<string[]> {
-  const response = await anthropic.messages.create({
-    model: VISION_MODEL,
-    max_tokens: 200,
-    messages: [{
-      role: 'user',
-      content: [
-        {
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: 'image/jpeg' as const,
-            data: imageBase64,
-          },
-        },
-        {
-          type: 'text',
-          text: '列出图片中所有食物和饮品的名称，每行一个，只返回名称，不返回其他内容。如果无法识别返回"无法识别"。',
-        },
-      ],
-    }],
-  });
-
-  const text = response.content
-    .filter((block) => block.type === 'text')
-    .map((block) => (block as any).text)
-    .join('\n');
-
-  return text
-    .split('\n')
-    .map((line) => line.replace(/^\d+[\.\)]\s*/, '').trim())
-    .filter((line) => line.length > 0 && line !== '无法识别');
-}
-
 export async function checkDeepSeekHealth(): Promise<boolean> {
   try {
-    const response = await anthropic.messages.create({
-      model: VISION_MODEL,
+    const response = await openai.chat.completions.create({
+      model: MODEL,
       max_tokens: 10,
       messages: [{ role: 'user', content: 'Ping' }],
     });
-    return response.content.length > 0;
+    return !!response.choices[0]?.message?.content;
   } catch {
     return false;
   }
