@@ -1,47 +1,79 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Animated, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { getProfile } from '../utils/storage';
 
-/**
- * 启动页 —— 检查用户档案
- * 有档案 → 跳转主页 (tabs)
- * 无档案 → 跳转档案设置页
- */
-export default function IndexScreen() {
-  const [checking, setChecking] = useState(true);
+export default function SplashScreen() {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    checkProfile();
-  }, []);
+    // 入场动画
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 6, useNativeDriver: true }),
+    ]).start();
 
-  async function checkProfile() {
-    try {
-      const profile = await getProfile();
-      if (profile) {
-        router.replace('/(tabs)/history');
-      } else {
+    // 加载点动画
+    const dotAnim = Animated.loop(
+      Animated.stagger(200, [
+        Animated.sequence([
+          Animated.timing(dot1, { toValue: 1, duration: 200, useNativeDriver: true }),
+          Animated.timing(dot1, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(dot2, { toValue: 1, duration: 200, useNativeDriver: true }),
+          Animated.timing(dot2, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(dot3, { toValue: 1, duration: 200, useNativeDriver: true }),
+          Animated.timing(dot3, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    dotAnim.start();
+
+    // 检查档案并跳转
+    const timer = setTimeout(async () => {
+      dotAnim.stop();
+      try {
+        const profile = await getProfile();
+        if (profile) {
+          router.replace('/(tabs)');
+        } else {
+          router.replace('/profile-setup');
+        }
+      } catch {
         router.replace('/profile-setup');
       }
-    } catch {
-      // 读取失败也进入设置页
-      router.replace('/profile-setup');
-    } finally {
-      setChecking(false);
-    }
-  }
+    }, 1500);
+
+    return () => {
+      clearTimeout(timer);
+      dotAnim.stop();
+    };
+  }, []);
+
+  const dotStyle = (anim: Animated.Value) => ({
+    opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }),
+    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.2] }) }],
+  });
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>🥗</Text>
-      <Text style={styles.title}>AI 食物识别助手</Text>
-      <Text style={styles.subtitle}>拍照即知热量，健康饮食更简单</Text>
-      {checking && (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color="#4CAF50" />
-          <Text style={styles.loadingText}>加载中...</Text>
-        </View>
-      )}
+      <Animated.View style={[styles.logoWrap, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+        <Text style={styles.logo}>🥗</Text>
+        <Text style={styles.title}>AI 食物识别助手</Text>
+        <Text style={styles.subtitle}>拍照识别 · 精准热量 · 健康饮食</Text>
+      </Animated.View>
+      <View style={styles.dotRow}>
+        <Animated.View style={[styles.dot, dotStyle(dot1)]} />
+        <Animated.View style={[styles.dot, dotStyle(dot2)]} />
+        <Animated.View style={[styles.dot, dotStyle(dot3)]} />
+      </View>
     </View>
   );
 }
@@ -54,30 +86,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 40,
   },
+  logoWrap: {
+    alignItems: 'center',
+  },
   logo: {
-    fontSize: 72,
-    marginBottom: 20,
+    fontSize: 80,
+    marginBottom: 24,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
     color: '#1A1A2E',
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: 1,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 22,
+    letterSpacing: 2,
   },
-  loadingRow: {
+  dotRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 40,
+    position: 'absolute',
+    bottom: 100,
+    gap: 10,
   },
-  loadingText: {
-    marginLeft: 10,
-    fontSize: 14,
-    color: '#9CA3AF',
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
   },
 });
