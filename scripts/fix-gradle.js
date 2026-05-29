@@ -86,7 +86,7 @@ buildGradle = buildGradle.replace(
 );
 buildGradle = buildGradle.replace(
   /org\.jetbrains\.kotlin:kotlin-gradle-plugin(:[^\n"']*)?/g,
-  'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24'
+  'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25'
 );
 
 if (!buildGradle.includes('gradlePluginPortal()')) {
@@ -121,7 +121,7 @@ if (!buildGradle.includes('gradle.projectsEvaluated')) {
 }
 
 fs.writeFileSync(buildGradlePath, buildGradle, 'utf-8');
-console.log('[OK] build.gradle — AGP 8.3.0 + Kotlin 1.9.24');
+console.log('[OK] build.gradle — AGP 8.3.0 + Kotlin 1.9.25');
 
 // ============================================================
 // 4. Gradle wrapper 锁定 8.7
