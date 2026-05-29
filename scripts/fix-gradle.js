@@ -59,7 +59,13 @@ removePluginRefs(path.join(rootDir, 'node_modules'));
 const buildGradlePath = path.join(androidDir, 'build.gradle');
 let buildGradle = fs.readFileSync(buildGradlePath, 'utf-8');
 
-// 只加 gradlePluginPortal，不锁 AGP/Kotlin 版本
+// 只锁 Kotlin 插件版本（Compose Compiler 依赖 kotlinVersion ext=1.9.25，插件必须匹配）
+buildGradle = buildGradle.replace(
+  /org\.jetbrains\.kotlin:kotlin-gradle-plugin(:[^\n"']*)?/g,
+  'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25'
+);
+
+// 只加 gradlePluginPortal，不锁 AGP 版本
 if (!buildGradle.includes('gradlePluginPortal()')) {
   buildGradle = buildGradle.replace(
     /(allprojects\s*\{[^}]*repositories\s*\{)/,
