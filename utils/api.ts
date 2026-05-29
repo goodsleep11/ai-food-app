@@ -1,16 +1,14 @@
 import { UserProfile, AnalysisResult, AnalyzeRequest } from '../types';
 
-// 后端服务地址（部署在 Render 云端）
 const API_BASE_URL = 'https://ai-food-app-t51p.onrender.com';
 
-/**
- * 发送食物图片到后端进行 AI 分析
- */
 export async function analyzeFoodImage(
   imageBase64: string,
-  profile: UserProfile
+  profile: UserProfile,
+  textDescription?: string,
+  recentHistory?: { foods: { name: string; calories: number }[]; totalCalories: number; timestamp: string }[]
 ): Promise<AnalysisResult> {
-  const body: AnalyzeRequest = { imageBase64, profile };
+  const body: AnalyzeRequest = { imageBase64, profile, textDescription, recentHistory };
 
   const response = await fetch(`${API_BASE_URL}/api/analyze`, {
     method: 'POST',

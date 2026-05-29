@@ -41,6 +41,12 @@ export interface AnalysisResult {
 export interface AnalyzeRequest {
   imageBase64: string;
   profile: UserProfile;
+  textDescription?: string;
+  recentHistory?: {
+    foods: { name: string; calories: number }[];
+    totalCalories: number;
+    timestamp: string;
+  }[];
 }
 
 // ========== 默认用户档案 ==========

@@ -1,9 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-// ============================================================
-//  Anthropic SDK 客户端 → DeepSeek 后端
-//  使用 Anthropic 原生图片格式，DeepSeek V4 Pro 支持多模态识图
-// ============================================================
 const anthropic = new Anthropic({
   apiKey: process.env.DEEPSEEK_API_KEY,
   baseURL: 'https://api.deepseek.com/anthropic',
@@ -11,7 +7,6 @@ const anthropic = new Anthropic({
 
 const VISION_MODEL = 'deepseek-v4-pro';
 
-// 用户档案类型
 interface UserProfile {
   nickname: string;
   age: number;
@@ -24,8 +19,14 @@ interface UserProfile {
   dailyCalorieTarget: number;
 }
 
+interface HistoryItem {
+  foods: { name: string; calories: number }[];
+  totalCalories: number;
+  timestamp: string;
+}
+
 // ============================================================
-//  联网搜索模块
+//  联网搜索（同上）
 // ============================================================
 
 async function searchDuckDuckGo(query: string): Promise<string> {
@@ -33,21 +34,14 @@ async function searchDuckDuckGo(query: string): Promise<string> {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
-
     const data: any = await response.json();
-
     const parts: string[] = [];
-    if (data.AbstractText && data.AbstractText.trim()) {
-      parts.push(data.AbstractText);
-    }
+    if (data.AbstractText?.trim()) parts.push(data.AbstractText);
     if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
       for (const topic of data.RelatedTopics.slice(0, 3)) {
-        if (topic.Text && topic.Text.trim()) {
-          parts.push(topic.Text);
-        }
+        if (topic.Text?.trim()) parts.push(topic.Text);
       }
     }
     return parts.join(' | ') || '';
@@ -61,27 +55,18 @@ async function searchDuckDuckGoHTML(query: string): Promise<string> {
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-
     const response = await fetch(url, {
       signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; AIFoodAssistant/1.0)',
-      },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AIFoodAssistant/1.0)' },
     });
     clearTimeout(timeout);
-
     const html = await response.text();
-
     const snippets: string[] = [];
     const snippetRegex = /class="result__snippet"[^>]*>([\s\S]*?)<\/td>/gi;
-    let match;
-    let count = 0;
+    let match, count = 0;
     while ((match = snippetRegex.exec(html)) !== null && count < 5) {
       const text = match[1].replace(/<[^>]+>/g, '').trim();
-      if (text) {
-        snippets.push(text);
-        count++;
-      }
+      if (text) { snippets.push(text); count++; }
     }
     return snippets.join(' | ') || '';
   } catch {
@@ -91,13 +76,11 @@ async function searchDuckDuckGoHTML(query: string): Promise<string> {
 
 async function fetchNutritionFromWeb(foodNames: string[]): Promise<string> {
   if (foodNames.length === 0) return '';
-
   const queries = foodNames.flatMap((name) => [
     `${name} 热量 每100克 营养成分`,
     `${name} calories per 100g nutrition facts`,
     `${name} 蛋白质 碳水 脂肪`,
   ]);
-
   const results = await Promise.all(
     queries.slice(0, 6).map(async (q) => {
       const instantResult = await searchDuckDuckGo(q);
@@ -105,144 +88,145 @@ async function fetchNutritionFromWeb(foodNames: string[]): Promise<string> {
       return searchDuckDuckGoHTML(q);
     })
   );
-
   const validResults = results.filter((r) => r.length > 10);
   const uniqueResults = [...new Set(validResults)];
   return uniqueResults.slice(0, 4).join('\n---\n');
 }
 
 // ============================================================
-//  DeepSeek Vision API 调用（Anthropic 原生格式）
+//  多模态分析（核心改进）
 // ============================================================
 
 /**
- * 使用 Anthropic 原生图片格式调用 DeepSeek 视觉模型识别食物
+ * 构建用户历史饮食上下文
  */
-async function identifyFoodsWithVision(imageBase64: string): Promise<string[]> {
-  const response = await anthropic.messages.create({
-    model: VISION_MODEL,
-    max_tokens: 300,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/jpeg' as const,
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: '请识别这张图片中的所有食物和饮品，只返回食物名称，每行一个，不要其他内容。如果无法识别请返回"无法识别"。',
-          },
-        ],
-      },
-    ],
-  });
+function buildHistoryContext(history: HistoryItem[]): string {
+  if (!history || history.length === 0) return '';
 
-  const text = response.content
-    .filter((block) => block.type === 'text')
-    .map((block) => (block as any).text)
-    .join('\n');
+  const today = new Date().toDateString();
+  const todayItems = history.filter(
+    (h) => new Date(h.timestamp).toDateString() === today
+  );
 
-  return text
-    .split('\n')
-    .map((line) => line.replace(/^\d+[\.\)]\s*/, '').trim())
-    .filter((line) => line.length > 0 && line !== '无法识别');
+  if (todayItems.length === 0) return '';
+
+  const todayCalories = todayItems.reduce((sum, h) => sum + h.totalCalories, 0);
+  const allFoods = todayItems.flatMap((h) => h.foods.map((f) => f.name));
+
+  return `
+=== 用户今日已记录饮食 ===
+今日已摄入: ${todayCalories} kcal
+已记录餐数: ${todayItems.length} 餐
+已吃食物: ${allFoods.join('、') || '无'}
+`;
 }
 
 /**
- * 核心：调用 DeepSeek V4 Pro 做完整食物营养分析
+ * 统一的多模态分析 —— 一键完成识别 + 营养分析
+ * 图片 + 文字描述（可选）+ 历史上下文 → 精确分析
  */
-async function visionFullAnalysis(
+async function multimodalAnalysis(
   imageBase64: string,
+  textDescription: string,
   profile: UserProfile,
-  webReference: string
+  webReference: string,
+  historyContext: string
 ): Promise<any> {
-  const restrictions = profile.dietaryRestrictions.join('、');
-  const customRestriction = profile.customRestriction
-    ? `，额外限制：${profile.customRestriction}`
-    : '';
-  const restrictionText = restrictions
-    ? `用户饮食限制：${restrictions}${customRestriction}`
-    : '用户无特殊饮食限制';
-
   const goalMap: Record<string, string> = {
     lose_fat: '减脂',
     gain_muscle: '增肌',
     maintain: '维持体重',
   };
 
+  const restrictions = profile.dietaryRestrictions.join('、');
+  const customRestriction = profile.customRestriction ? `，额外限制：${profile.customRestriction}` : '';
+  const restrictionText = restrictions
+    ? `用户饮食限制：${restrictions}${customRestriction}`
+    : '用户无特殊饮食限制';
+
   const webRefSnippet = webReference
     ? webReference.slice(0, 2000)
     : '（无联网参考数据，请使用你的训练知识估算）';
 
-  const systemPrompt = `你是一位持有营养师资质的专业饮食分析助手。你的任务是根据食物图片进行精确的营养分析。
+  // 用户文字描述
+  const descriptionBlock = textDescription
+    ? `\n【用户对食物的描述】: ${textDescription}\n请以用户描述为准，结合图片进行精确识别。`
+    : '';
 
-你必须严格遵循以下规则：
-1. 仔细识别图片中所有食物和饮品
-2. 估算每种食物的份量和营养素含量
-3. 优先参考提供的联网搜索数据（如有），结合你的训练知识做精确估算
-4. 重点检查用户饮食限制，任何违规必须在 warnings 中明确指出
-5. 只返回 JSON，不要包含任何其他文字`;
+  const todayCaloriesMatch = historyContext.match(/今日已摄入: (\d+) kcal/);
+  const remainingCalories = todayCaloriesMatch
+    ? profile.dailyCalorieTarget - parseInt(todayCaloriesMatch[1])
+    : profile.dailyCalorieTarget;
+
+  const systemPrompt = `你是一位资深营养师兼 AI 饮食分析专家。你的任务是通过图片和用户描述，进行多模态食物识别和精准营养分析。
+
+核心能力要求:
+1. 优先以用户的文字描述为主（用户最清楚自己吃了什么），图片作为辅助验证
+2. 如果图片与描述有出入，以描述为准，但在 warnings 中提及差异
+3. 对中餐有深度理解：能准确识别各种中式菜肴、主食、汤品
+4. 份量估算要结合中国人日常饮食习惯（碗、碟、份等）
+5. 营养数据优先参考联网搜索结果，提高准确性
+6. 结合用户目标和历史，给出具体的、可执行的个性化建议
+
+只返回 JSON，不要包含任何其他文字。`;
 
   const userPrompt = `${restrictionText}
-用户目标：${goalMap[profile.goal]}
-用户每日目标热量：${profile.dailyCalorieTarget} kcal
+用户目标：${goalMap[profile.goal]}（每日目标 ${profile.dailyCalorieTarget} kcal）
 用户信息：${profile.gender === 'male' ? '男' : profile.gender === 'female' ? '女' : '其他'}，${profile.age}岁，${profile.height}cm，${profile.weight}kg
+今日剩余可摄入: ${Math.max(0, remainingCalories)} kcal
+${historyContext}
+${descriptionBlock}
 
-=== 以下是从互联网实时搜索到的食物营养参考数据，请优先参考 ===
+=== 联网营养参考数据 ===
 ${webRefSnippet}
 === 联网数据结束 ===
 
-请分析图片中的食物，返回严格符合此 JSON 格式的结果（不要包含 markdown 代码块标记）：
+请分析这份食物，返回严格 JSON（不要 markdown 代码块）：
 {
   "foods": [
     {
-      "name": "食物名称",
-      "portion": "份量估算（如：约200g/约1碗）",
+      "name": "食物名称（中文，尽量具体，如：红烧排骨、番茄炒蛋）",
+      "portion": "份量估算（如：约200g/约1碗/约1份）",
       "calories": 数字(千卡),
       "protein": 数字(克),
       "carbs": 数字(克),
       "fat": 数字(克)
     }
   ],
-  "warnings": ["如果食物违反用户饮食限制，在此列出具体警告；如果没有违规，返回空数组"],
-  "generalAdvice": "针对用户饮食目标的个性化建议（1-2句，中文）"
+  "warnings": ["饮食限制违规警告，无则空数组"],
+  "generalAdvice": "2-3句个性化建议，结合用户目标、今日已摄入情况、营养均衡度，给出具体的行动建议（不要说空话，要具体到食物替换、份量调整）"
 }
 
-重要：
-- 若完全无法识别图片中的食物，foods 返回空数组，warnings 中说明原因
-- 热量和三大宏量素需尽量精确，参考联网数据提高准确性
-- 每项营养素都是必填数字
-- 份量要用中文描述具体数量`;
+重要规则：
+- 若完全无法识别，foods 返回空数组，generalAdvice 建议用户用文字描述
+- 用户文字描述与图片冲突时，以描述为准
+- 中餐菜名要具体（不要只写"肉"、"菜"这种模糊名称）
+- generalAdvice 必须基于实际数据给出具体建议`;
+
+  // 构建 messages 内容
+  const contentBlocks: any[] = [];
+
+  // 图片
+  contentBlocks.push({
+    type: 'image',
+    source: {
+      type: 'base64',
+      media_type: 'image/jpeg' as const,
+      data: imageBase64,
+    },
+  });
+
+  // 文字提示
+  contentBlocks.push({
+    type: 'text',
+    text: userPrompt,
+  });
 
   const response = await anthropic.messages.create({
     model: VISION_MODEL,
-    max_tokens: 1024,
+    max_tokens: 1536,
     system: systemPrompt,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/jpeg' as const,
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: userPrompt,
-          },
-        ],
-      },
-    ],
+    messages: [{ role: 'user', content: contentBlocks }],
   });
 
   return response.content
@@ -252,33 +236,52 @@ ${webRefSnippet}
 }
 
 // ============================================================
-//  主分析流程
+//  主分析流程（对外暴露）
 // ============================================================
 
 export async function analyzeFood(
   imageBase64: string,
-  profile: UserProfile
+  profile: UserProfile,
+  textDescription?: string,
+  recentHistory?: HistoryItem[]
 ) {
-  // Step 1: 视觉识别食物
-  console.log('🔍 Step 1: Vision 识别图片中的食物...');
-  const foodNames = await identifyFoodsWithVision(imageBase64);
-  console.log(`   识别到 ${foodNames.length} 种食物: ${foodNames.join(', ') || '无'}`);
+  const desc = (textDescription || '').trim();
+
+  // Step 1: 从文字描述和图片中提取食物名称（用于联网搜索）
+  let foodNames: string[] = [];
+  if (desc) {
+    // 用户有描述，直接用描述中的关键词
+    foodNames = desc.split(/[,，、\s]+/).filter((n) => n.length > 0);
+    console.log(`📝 用户描述食物: ${foodNames.join(', ')}`);
+  } else {
+    // 无描述，从图片快速识别
+    console.log('🔍 Step 1: Vision 识别图片中的食物...');
+    foodNames = await identifyFoodsFromImage(imageBase64);
+  }
+  console.log(`   食物关键词: ${foodNames.join(', ') || '无'}`);
 
   // Step 2: 联网搜索营养数据
   console.log('🌐 Step 2: 联网搜索营养参考数据...');
   const webReference = await fetchNutritionFromWeb(foodNames);
   console.log(`   获取到 ${webReference.length} 字符的参考数据`);
 
-  // Step 3: Vision 完整分析
-  console.log('🤖 Step 3: Vision 深度分析...');
-  const rawResponse = await visionFullAnalysis(imageBase64, profile, webReference);
+  // Step 3: 构建历史上下文
+  const historyContext = buildHistoryContext(recentHistory || []);
 
-  // Step 4: 解析 JSON
+  // Step 4: 多模态完整分析（图片 + 文字 + 历史 → 一步到位）
+  console.log('🤖 Step 3: 多模态深度分析...');
+  const rawResponse = await multimodalAnalysis(
+    imageBase64,
+    desc,
+    profile,
+    webReference,
+    historyContext
+  );
+
+  // Step 5: 解析 JSON
   let jsonStr = rawResponse.trim();
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (jsonMatch) {
-    jsonStr = jsonMatch[1].trim();
-  }
+  if (jsonMatch) jsonStr = jsonMatch[1].trim();
 
   let aiResult: any;
   try {
@@ -296,7 +299,7 @@ export async function analyzeFood(
     }
   }
 
-  // Step 5: 本地计算汇总
+  // Step 6: 本地计算汇总
   const foods = Array.isArray(aiResult.foods) ? aiResult.foods : [];
   const totalCalories = foods.reduce((sum: number, f: any) => sum + (f.calories || 0), 0);
   const totalProtein = foods.reduce((sum: number, f: any) => sum + (f.protein || 0), 0);
@@ -310,18 +313,10 @@ export async function analyzeFood(
 
   const isCompliant = !(aiResult.warnings && aiResult.warnings.length > 0);
 
-  let goalAdvice = aiResult.generalAdvice || '';
-  if (!goalAdvice) {
-    if (profile.goal === 'lose_fat' && caloriePercentage > 35) {
-      goalAdvice = '这餐热量占比较高，建议适当减少主食份量，增加蔬菜比例。';
-    } else if (profile.goal === 'gain_muscle' && totalProtein < 25) {
-      goalAdvice = '蛋白质摄入偏低，建议增加鸡胸肉、鱼虾、豆腐等高蛋白食物。';
-    } else if (totalCalories === 0) {
-      goalAdvice = '未能识别食物，请尝试在光线充足处重新拍摄。';
-    } else {
-      goalAdvice = '营养搭配不错，继续保持均衡饮食！';
-    }
-  }
+  const goalAdvice = aiResult.generalAdvice ||
+    (totalCalories === 0
+      ? '未能识别食物。建议用文字/语音描述你吃了什么，AI 会基于描述进行分析。'
+      : '营养搭配不错，继续保持均衡饮食！');
 
   console.log(`✅ 分析完成 - ${foods.length} 种食物, 总热量 ${totalCalories}kcal`);
 
@@ -336,14 +331,48 @@ export async function analyzeFood(
     suggestions: goalAdvice,
     isCompliant,
     webSearchSummary: webReference
-      ? `已联网查询 ${foodNames.length} 种食物的营养数据`
+      ? `已联网查询营养数据`
       : '使用 AI 内置知识库分析',
   };
 }
 
 /**
- * 健康检查 —— 验证 DeepSeek API 连通性
+ * 仅从图片快速识别食物名称（用于联网搜索关键词）
  */
+async function identifyFoodsFromImage(imageBase64: string): Promise<string[]> {
+  const response = await anthropic.messages.create({
+    model: VISION_MODEL,
+    max_tokens: 200,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg' as const,
+            data: imageBase64,
+          },
+        },
+        {
+          type: 'text',
+          text: '列出图片中所有食物和饮品的名称，每行一个，只返回名称，不返回其他内容。如果无法识别返回"无法识别"。',
+        },
+      ],
+    }],
+  });
+
+  const text = response.content
+    .filter((block) => block.type === 'text')
+    .map((block) => (block as any).text)
+    .join('\n');
+
+  return text
+    .split('\n')
+    .map((line) => line.replace(/^\d+[\.\)]\s*/, '').trim())
+    .filter((line) => line.length > 0 && line !== '无法识别');
+}
+
 export async function checkDeepSeekHealth(): Promise<boolean> {
   try {
     const response = await anthropic.messages.create({
