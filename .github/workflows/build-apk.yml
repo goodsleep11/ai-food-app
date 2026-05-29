@@ -43,8 +43,11 @@ jobs:
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
+      - name: 重命名 APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk AI食物识别助手.apk
+
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
           name: AI食物识别助手-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: AI食物识别助手.apk
