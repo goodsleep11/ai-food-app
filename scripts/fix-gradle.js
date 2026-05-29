@@ -22,7 +22,7 @@ function removePluginRefs(dir) {
       content = content.replace(/  id ['"]expo-module-gradle-plugin['"]\n/, '');
       // 在最后一个 } 后面追加函数调用（plugins 块的结束）
       const appendCode = `
-apply from: new File(project.rootProject.projectDir, 'node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle')
+apply from: new File(project.rootProject.projectDir, '../node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle')
 applyKotlinExpoModulesCorePlugin()
 useDefaultAndroidSdkVersions()
 useExpoPublishing()
